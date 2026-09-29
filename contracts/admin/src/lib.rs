@@ -1643,6 +1643,16 @@ mod test_pausable;
 #[cfg(test)]
 mod test_pause_failure_boundaries;
 
+/// Deterministic failure-boundary coverage for `set_pause_signer` (issue #1409).
+/// Covers: authorization hierarchy, zero-address rejection, self-assignment
+/// rejection, idempotency, epoch monotonicity, count/threshold invariants,
+/// concurrent execution safety, and full lifecycle regression scenarios.
+#[cfg(test)]
+mod test_set_pause_signer_boundaries;
+
+#[cfg(test)]
+mod test_zero_address_working;
+
 #[cfg(test)]
 mod test_admin_epoch_guard;
 
