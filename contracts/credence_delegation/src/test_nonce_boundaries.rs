@@ -322,7 +322,9 @@ fn competing_submissions_spend_nonce_exactly_once_and_can_resynchronize() {
     let b = Address::generate(&e);
     first.delegate(&owner, &a, &DelegationType::Attestation, &3600, &0);
     assert_eq!(
-        second.try_delegate(&owner, &b, &DelegationType::Attestation, &3600, &0).err(),
+        second
+            .try_delegate(&owner, &b, &DelegationType::Attestation, &3600, &0)
+            .err(),
         Some(Ok(error(ContractError::InvalidNonce)))
     );
     assert_eq!(first.get_nonce(&owner), 1);
