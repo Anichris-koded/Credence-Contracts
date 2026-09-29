@@ -285,6 +285,22 @@ fn nonce_ttl_refreshes_at_threshold_and_never_shortens_existing_lifetime() {
 }
 
 #[test]
+fn existing_entry_expiry_bump_preserves_value_and_never_shortens_ttl() {
+    let (e, contract, owner) = setup();
+    let key = DataKey::Nonce(owner.clone());
+    seed(&e, &contract, &owner, 42);
+    e.as_contract(&contract, || {
+        // The expiry helper accepts any persistent DataKey. Exercise its
+        // existing-entry path without changing the stored nonce value.
+        bump_delegation_ttl(&e, &key, u64::MAX);
+        assert_eq!(e.storage().persistent().get_ttl(&key), MAX_TTL);
+        bump_delegation_ttl(&e, &key, 0);
+        assert_eq!(e.storage().persistent().get_ttl(&key), MAX_TTL);
+        assert_eq!(e.storage().persistent().get::<_, u64>(&key), Some(42));
+    });
+}
+
+#[test]
 fn absent_ttl_bumps_do_not_create_storage() {
     let (e, contract, owner) = setup();
     let key = DataKey::Nonce(owner.clone());
