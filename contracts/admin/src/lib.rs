@@ -1678,3 +1678,6 @@ mod test_concurrency_race_safety;
 
 #[cfg(test)]
 mod test_atomic_rollback;
+
+#[cfg(test)]
+mod test_required_role_to_assign;
