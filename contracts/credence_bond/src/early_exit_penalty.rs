@@ -1,1 +1,363 @@
-dXNlIGNyZWRlbmNlX2Vycm9yczo6Q29udHJhY3RFcnJvcjsKdXNlIHNvcm9iYW5fc2RrOjp7Y29udHJhY3R0eXBlLCBBZGRyZXNzLCBFbnYsIFN5bWJvbH07Cgp1c2UgY3JhdGU6Om1hdGg6OkJQU19ERU5PTUlOQVRPUjsKdXNlIGNyYXRlOjpEYXRhS2V5OwoKLy8vIENvbmZpZ3VyYXRpb24gZm9yIGVhcmx5LWV4aXQgcGVuYWx0aWVzLgovLy8KLy8vICMjIEludmFyaWFudHMKLy8vIC0gYHBlbmFsdHlfcGJzYCBpcyBhbHdheXMgaW4gYFsxLCBCUFNfREVOT01JTkFUT1JdYCBvbmNlIHBlcnNpc3RlZC4KLy8vICAgKFRoZSBsb3dlciBib3VuZCBvZiBgMWAgaXMgZW5mb3JjZWQgYnkgYHNldF9jb25maWdgIHRvIGF2b2lkIGEK Ly8vICAgc2lsZW50bHkgbm8tb3AgcGVuYWx0eSBjb25maWd1cmF0aW9uLikKLy8vIC0gYHRyZWFzdXJ5YCBpcyB0aGUgb25seSBhZGRyZXNzIHRoYXQgbWF5IHJlY2VpdmUgY29sbGVjdGVkIHBlbmFsdGllcy4KIy8vIC0gVGhlIGNvbmZpZyBpcyBzdG9yZWQgaW4gaW5zdGFuY2Ugc3RvcmFnZSBzbyBpdCBpcyBhdmFpbGFibGUgZm9yIHRoZQovLy8gICBlbnRpcmUgbGlmZXRpbWUgb2YgdGhlIGNvbnRyYWN0IGFuZCBjYW5ub3QgYmUgZ2FyYmFnZS1jb2xsZWN0ZWQKLy8vICAgd2hpbGUgdGhlIGNvbnRyYWN0IGlzIGxpdmUuCltjb250cmFjdHR5cGVdCiNbZGVyaXZlKENsb25lLCBEZWJ1ZywgRXEsIFBhcnRpYWxFcSldCnB1YiBzdHJ1Y3QgRWFybHlFeGl0Q29uZmlnIHsKICAgIHB1YiB0cmVhc3VyeTogQWRkcmVzcywKICAgIHB1YiBwZW5hbHR5X2JwczogdTMyLAp9CgovLy8gUGVyc2lzdCB0aGUgZWFybHktZXhpdCBjb25maWd1cmF0aW9uLgovLwovLy8gIyMgVmFsaWRhdGlvbgovLy8gLSBgcGVuYWx0eV9icHNgIG11c3QgYmUgaW4gYFsxLCBCUFNfREVOT01JTkFUT1JdYC4gQSB2YWx1ZSBvZiBgMGAgaXMK Ly8vICAgcmVqZWN0ZWQgYmVjYXVzZSBpdCB3b3VsZCBtYWtlIHRoZSBwZW5hbHR5IGEgZG9jdW1lbnRlZCBuby1vcCBhbmQKLy8vICAgbWFzayBjb25maWd1cmF0aW9uIG1pc3Rha2VzOyB2YWx1ZXMgYWJvdmUgYEJQU19ERU5PTUlOQVRPUmAgd291bGQKLy8vICAgb3ZlcmNoYXJnZSB1c2Vycy4KLy8vCi8vLyAjIyBFZmZlY3RzCi8vLyAtIFdyaXRlcyB0aGUgY29uZmlnIGFuZCBlbWl0cyB0aGUgYGVhcmx5X2V4aXRfY29uZmlnX3NldGAgZXZlbnQKLy8vICAgd2l0aCB0aGUgbmV3IHRyZWFzdXJ5IGFuZCBwZW5hbHR5IGJwcy4KLy8vCi8vLyAjIyBQYW5pY3MKLy8vIC0gUGFuaWNzIHdpdGggYSBzdGFibGUgbWVzc2FnZSB3aGVuIGBwZW5hbHR5X2Jwc2AgaXMgb3V0IG9mIHJhbmdlLgpwdWIgZm4gc2V0X2NvbmZpZyhlOiAmRW52LCB0cmVhc3VyeTogQWRkcmVzcywgcGVuYWx0eV9icHM6IHUzMikgewogICAgaWYgcGVuYWx0eV9icHMgPT0gMCB8fCBwZW5hbHR5X2JwcyA+IEJQU19ERU5PTUlOQVRPUiBhcyB1MzIgewogICAgICAgIHBhbmljKCJwZW5hbHR5X2JwcyBtdXN0IGJlIGluIFsxLCAxMDAwMF0iKTsKICAgIH0KICAgIGxldCBrZXkgPSBEYXRhS2V5OjpFYXJseUV4aXRDb25maWc7CiAgICBlLnN0b3JhZ2UoKS5pbnN0YW5jZSgpLnNldCgKICAgICAgICAmawZXksCiAgICAgICAgJkVhcmx5RXhpdENvbmZpZyB7CiAgICAgICAgICAgIHRyZWFzdXJ5OiB0cmVhc3VyeS5jbG9uZSgpLAogICAgICAgICAgICBwZW5hbHR5X2JwcywKICAgICAgICB9LAogICAgKTsKICAgIGUuZXZlbnRzKCkucHVibGlzaCgKICAgICAgICAoU3ltYm9sOjpuZXcoZSwgImVhcmx5X2V4aXRfY29uZmlnX3NldCIpLCksCiAgICAgICAgKHRyZWFzdXJ5LCBwZW5hbHR5X2JwcyksCiAgICApOwp9CgovLy8gUmVhZCB0aGUgZWFybHktZXhpdCBjb25maWd1cmF0aW9uLgovLwovLy8gUmV0dXJucyBgRXJyb3JgIHdpdGggYENvbnRyYWN0RXJyb3I6OkVhcmx5RXhpdENvbmZpZ05vdFNldGAgd2hlbiB0aGUKLy8vIGNvbmZpZyBoYXMgbm90IGJlZW4gaW5pdGlhbGl6ZWQuIFRoaXMgaXMgYSByZWNvdmVyYWJsZSBjb25kaXRpb246IGNhbGxlcnMKLy8vIGNhbiBpbml0aWFsaXplIHRoZSBjb25maWcgYW5kIHJldHJ5LgpwdWIgZm4gZ2V0X2NvbmZpZyhlOiAmRW52KSAtPiBSZXN1bHQ8RWFybHlFeGl0Q29uZmlnLCBDb250cmFjdEVycm9yPiB7CiAgICBsZXQga2V5ID0gRGF0YUtleTo6RWFybHlFeGl0Q29uZmlnOwogICAgZS5zdG9yYWdlKCkKICAgICAgICAuaW5zdGFuY2UoKQogICAgICAgIC5nZXQoJmtleSkKICAgICAgICAub2soQ29udHJhY3RFcnJvcjo6RWFybHlFeGl0Q29uZmlnTm90U2V0KQp9CgovLy8gQ29tcHV0ZSB0aGUgZWFybHktZXhpdCBwZW5hbHR5IGZvciBhIHBhcnRpYWxseSBlbGFwc2VkIGJvbmQuCi8vLwovLy8gIyMgRm9ybXVsYQovLy8gYHBlbmFsdHkgPSBhbW91bnQgKiBwZW5hbHR5X2JwcyAvIEJQU19ERU5PTUlOQVRPUiAqIHJlbWFpbmluZyAvIGR1cmF0aW9uYAovLy8gd2l0aCB0cnVuY2F0aW5nIGludGVnZXIgZGl2aXNpb24gYXQgZWFjaCBzdGVwLgovLwovLy8gIyMgQm91bmRhcnkgYmVoYXZpb3IKLy8vIC0gYGR1cmF0aW9uID09IDBgOiByZXR1cm5zIGAwYCAoZGVnZW5lcmF0ZSBib25kLCBubyBwZW5hbHR5KS4KLy8vIC0gYHJlbWFpbmluZyA+PSBkdXJhdGlvbmA6IHRoZSBmdWxsIHBlbmFsdHkgY2FwIGlzIGFwcGxpZWQgKGNsYW1wZWQpLgovLy8gLSBgcmVtYWluaW5nID09IDBgOiByZXR1cm5zIGAwYCAoYm9uZCBmdWxseSBtYXR1cmVkKS4KLy8vIC0gYGFtb3VudCA8PSAwYDogcmV0dXJucyBgMGAgKG5vIHBlbmFsdHkgb24gbm9uLXBvc2l0aXZlIGFtb3VudHMpLgovLy8gLSBBbnkgb3ZlcmZsb3cgaW4gaW50ZXJtZWRpYXRlIG11bHRpcGxpY2F0aW9uIHNhdHVyYXRlcyB0byBgMGAKLy8vICAgcmF0aGVyIHRoYW4gcGFuaWNraW5nLCBzbyB0aGUgY2FsbGVyIG5ldmVyIGxvc2VzIGZ1bmRzIHRvIGFuCi8vLyAgIHVuY29udHJvbGxlZCBwYW5pYy4KLy8vCi8vLyAjIyBEZXRlcm1pbmlzbQovLy8gVGhlIGZ1bmN0aW9uIGlzIHB1cmUgYW5kIGRldGVybWluaXN0aWMgZm9yIGFsbCBpbnB1dHMuCnB1YiBmbiBjYWxjdWxhdGVfcGVuYWx0eShhbW91bnQ6IGkxMjgsIHJlbWFpbmluZzogdTY0LCBkdXJhdGlvbjogdTY0LCBwZW5hbHR5X2JwczogdTMyKSAtPiBpMTI4IHsKICAgIC8vIE5vbi1wb3NpdGl2ZSBhbW91bnRzIG5ldmVyIGluY3VyIGEgcGVuYWx0eS4KICAgIGlmIGFtb3VudCA8PSAwIHsKICAgICAgICByZXR1cm4gMDsKICAgIH0KICAgIC8vIERlZ2VuZXJhdGUgYm9uZCB3aXRoIG5vIGR1cmF0aW9uIG5ldmVyIGluY3VycyBhIHBlbmFsdHkuCiAgICBpZiBkdXJhdGlvbiA9PSAwIHsKICAgICAgICByZXR1cm4gMDsKICAgIH0KICAgIC8vIEZ1bGx5IG1hdHVyZWQgYm9uZCBuZXZlciBpbmN1cnMgYSBwZW5hbHR5LgogICAgaWYgcmVtYWluaW5nID09IDAgewogICAgICAgIHJldHVybiAwOwogICAgfQogICAgLy8gQ2xhbXAgcmVtYWluaW5nIHRvIGR1cmF0aW9uIHNvIGEgY2FsbGVyIGNhbm5vdCBpbmZsYXRlIHRoZSBwZW5hbHR5CiAgICAvLyBieSBwYXNzaW5nIGEgcmVtYWluaW5nIGxhcmdlciB0aGFuIHRoZSBvcmlnaW5hbCBkdXJhdGlvbi4KICAgIGxldCBlZmZlY3RpdmVfcmVtYWluaW5nID0gaWYgcmVtYWluaW5nID4gZHVyYXRpb24gewogICAgICAgIGR1cmF0aW9uCiAgICB9IGVsc2UgewogICAgICAgIHJlbWFpbmluZwogICAgfTsKICAgIC8vIENsYW1wIHBlbmFsdHkgYnBzIGRlZmVuc2l2ZWx5IGluIGNhc2UgYSBjb25maWcgd2FzIHdyaXR0ZW4gYnkKICAgIC8vIGFuIG9sZGVyIGltcGxlbWVudGF0aW9uIG9yIG1pZ3JhdGlvbiBwYXRoLgogICAgbGV0IGVmZmVjdGl2ZV9icHMgPSBpZiBwZW5hbHR5X2JwcyA+IEJQU19ERU5PTUlOQVRPUiBhcyB1MzIgewogICAgICAgIEJQU19ERU5PTUlOQVRPUiBhcyB1MzIKICAgIH0gZWxzZSB7CiAgICAgICAgcGVuYWx0eV9icHMKICAgIH07CiAgICBsZXQgY2hhcmdlID0gbWF0Y2ggYW1vdW50LmNoZWNrZWRfbXVsKGVmZmVjdGl2ZV9icHMgYXMgaTEyOCkgewogICAgICAgIFNvbWUodikgPT4gdiwKICAgICAgICBOb25lID0+IHJldHVybiAwLAogICAgfTsKICAgIGxldCBjaGFyZ2UgPSBtYXRjaCBjaGFyZ2UuY2hlY2tlZF9kaXYoQlBTX0RFTk9NSU5BVE9SKSB7CiAgICAgICAgU29tZSh2KSA9PiB2LAogICAgICAgIE5vbmUgPT4gcmV0dXJuIDAsCiAgICB9OwogICAgbGV0IGNoYXJnZSA9IG1hdGNoIGNoYXJnZS5jaGVja2VkX211bChlZmZlY3RpdmVfcmVtYWluaW5nIGFzIGkxMjgpIHsKICAgICAgICBTb21lKHYpID0+IHYsCiAgICAgICAgTm9uZSA9PiByZXR1cm4gMCwKICAgIH07CiAgICBtYXRjaCBjaGFyZ2UuY2hlY2tlZF9kaXYoZHVyYXRpb24gYXMgaTEyOCkgewogICAgICAgIFNvbWUodikgPT4gdiwKICAgICAgICBOb25lID0+IDAsCiAgICB9Cn0KCi8vLyBFbWl0IGFuIGVhcmx5LWV4aXQgcGVuYWx0eSBldmVudCBmb3Igb2JzZXJ2YWJpbGl0eS4KLy8vCi8vLyBUaGUgZXZlbnQgcGF5bG9hZCBjb250YWlucyBvbmx5IHB1YmxpYyBpZGVudGlmaWVycyBhbmQgbnVtZXJpYyBhbW91bnRzLAovLy8gbm8gc2Vuc2l0aXZlIGRhdGEgaXMgaW5jbHVkZWQuCnB1YiBmbiBlbWl0X3BlbmFsdHlfZXZlbnQoCiAgICBlOiAmRW52LAogICAgaWRlbnRpdHk6ICZBZGRyZXNzLAogICAgYW1vdW50OiBpMTI4LAogICAgcGVuYWx0eTogaTEyOCwKICAgIHRyZWFzdXJ5OiAmQWRkcmVzcywKKSB7CiAgICBlLmV2ZW50cygpLnB1Ymxpc2goCiAgICAgICAgKFN5bWJvbDo6bmV3KGUsICJlYXJseV9leGl0X3BlbmFsdHkiKSwpLAogICAgICAgIChpZGVudGl0eS5jbG9uZSgpLCBhbW91bnQsIHBlbmFsdHksIHRyZWFzdXJ5LmNsb25lKCkpLAogICAgKTsKfQoKI1tjZmcoYWxsKHRlc3QpKV1tbW9kIHRlc3RzXV0KbW9kIHRlc3RzIHsKICAgIHVzZSBzdXBlcjo6KjsKICAgIHVzZSBjcmVkZW5jZV9lcnJvcnM6OkNvbnRyYWN0RXJyb3I7CiAgICB1c2Ugc29yb2Jhbl9zZGs6OnRlc3R1dGlsczo6ewogICAgICAgIEFkZHJlc3MgYXMgXywgRW52IGFzIF8sIExlZGdlciBhcyBfLAogICAgfTsKICAgIHVzZSBzb3JvYmFuX3Nkazp7RW52LCBBZGRyZXNzfTsKCiAgICBmbiBzZXR1cCgpIC0+IEVudiB7CiAgICAgICAgbGV0IGUgPSBFbnY6OmRlZmF1bHQoKTsKICAgICAgICBlLm1vY2tfYWxsX2F1dGhzKCk7CiAgICAgICAgZQogICAgfQoKICAgIGZuIGFkZHIoZTogJkVudikgLT4gQWRkcmVzcyB7CiAgICAgICAgQWRkcmVzczo6Z2VuZXJhdGUoZSkKICAgIH0KCiAgICAvLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIC8vIHNldF9jb25maWcgLyBnZXRfY29uZmlnCiAgICAvLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiAgICAjW3Rlc3RdCiAgICBmbiBnZXRfY29uZmlnX2JlZm9yZV9zZXRfcmV0dXJuc19ub3Rfc2V0KCkgewogICAgICAgIGxldCBlID0gc2V0dXAoKTsKICAgICAgICBsZXQgcmVzdWx0ID0gZ2V0X2NvbmZpZygmZSk7CiAgICAgICAgYXNzZXJ0X2VxIShyZXN1bHQsIEVycihDb250cmFjdEVycm9yOjpFYXJseUV4aXRDb25maWdOb3RTZXQpKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBzZXRfY29uZmlnX3JvdW5kX3RyaXBzX3ZhbHVlcygpIHsKICAgICAgICBsZXQgZSA9IHNldHVwKCk7CiAgICAgICAgbGV0IHRyZWFzdXJ5ID0gYWRkcigmZSk7CiAgICAgICAgc2V0X2NvbmZpZygmZSwgdHJlYXN1cnkuY2xvbmUoKSwgNTAwKTsKICAgICAgICBsZXQgY2ZnID0gZ2V0X2NvbmZpZygmZSkudW53cmFwKCk7CiAgICAgICAgYXNzZXJ0X2VxIShjZmcudHJlYXN1cnksIHRyZWFzdXJ5KTsKICAgICAgICBhc3NlcnRfZXEhKGNmZy5wZW5hbHR5X2JwcywgNTAwKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBzZXRfY29uZmlnX2F0X21heF9icHNfc3VjY2VlZHMoKSB7CiAgICAgICAgbGV0IGUgPSBzZXR1cCgpOwogICAgICAgIGxldCB0cmVhc3VyeSA9IGFkZHIoJmUpOwogICAgICAgIHNldF9jb25maWcoJmUsIHRyZWFzdXJ5LmNsb25lKCksIEJQU19ERU5PTUlOQVRPUiBhcyB1MzIpOwogICAgICAgIGxldCBjZmcgPSBnZXRfY29uZmlnKCZlKS51bndyYXAoKTsKICAgICAgICBhc3NlcnRfZXEhKGNmZy5wZW5hbHR5X2JwcywgQlBTX0RFTk9NSU5BVE9SIGFzIHUzMik7CiAgICB9CgogICAgI1t0ZXN0XQogICAgI1tzaG91bGRfcGFuaWNdCiAgICBmbiBzZXRfY29uZmlnX3JlamVjdHNfemVyb19icHMoKSB7CiAgICAgICAgbGV0IGUgPSBzZXR1cCgpOwogICAgICAgIGxldCB0cmVhc3VyeSA9IGFkZHIoJmUpOwogICAgICAgIHNldF9jb25maWcoJmUsIHRyZWFzdXJ5LCAwKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICAjW3Nob3VsZF9wYW5pY10KICAgIGZuIHNldF9jb25maWdfcmVqZWN0c19hYm92ZV9tYXhfYnBzKCkgewogICAgICAgIGxldCBlID0gc2V0dXAoKTsKICAgICAgICBsZXQgdHJlYXN1cnkgPSBhZGRyKCZlKTsKICAgICAgICBzZXRfY29uZmlnKCZlLCB0cmVhc3VyeSwgKEJQU19ERU5PTUlOQVRPUiBhcyB1MzIpICsgMSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gc2V0X2NvbmZpZ19vdmVyd3JpdGVzX3ByZXZpb3VzX3ZhbHVlcygpIHsKICAgICAgICBsZXQgZSA9IHNldHVwKCk7CiAgICAgICAgbGV0IHQxID0gYWRkcigmZSk7CiAgICAgICAgbGV0IHQyID0gYWRkcigmZSk7CiAgICAgICAgc2V0X2NvbmZpZygmZSwgdDEsIDIwMCk7CiAgICAgICAgc2V0X2NvbmZpZygmZSwgdDIuY2xvbmUoKSwgODAwKTsKICAgICAgICBsZXQgY2ZnID0gZ2V0X2NvbmZpZygmZSkudW53cmFwKCk7CiAgICAgICAgYXNzZXJ0X2VxIShjZmcudHJlYXN1cnksIHQyKTsKICAgICAgICBhc3NlcnRfZXEhKGNmZy5wZW5hbHR5X2JwcywgODAwKTsKICAgIH0KCiAgICAvLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIC8vIGNhbGN1bGF0ZV9wZW5hbHR5IC0gbm9ybWFsIG9wZXJhdGlvbgogICAgLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV9mdWxsX3JlbWFpbmluZ19hcHBsaWVzX2Z1bGxfYnBzKCkgewogICAgICAgIC8vIDEwMDAgKiA1MDAvMTAwMDAgKiAxMDAvMTAwID0gNTAKICAgICAgICBhc3NlcnRfZXEhKGNhbGN1bGF0ZV9wZW5hbHR5KDEwMDAsIDEwMCwgMTAwLCA1MDApLCA1MCk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV9oYWxmX3JlbWFpbmluZ19hcHBsaWVzX2hhbGYoKSB7CiAgICAgICAgLy8gMTAwMCAqIDUwMC8xMDAwMCAqIDUwLzEwMCA9IDI1CiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMDAwLCA1MCwgMTAwLCA1MDApLCAyNSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV9mdWxseV9tYXR1cmVkX2lzX3plcm8oKSB7CiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMDAwLCAwLCAxMDAsIDUwMCksIDApOwogICAgfQoKICAgIC8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQogICAgLy8gY2FsY3VsYXRlX3BlbmFsdHkgLSBib3VuZGFyeSBjYXNlcwogICAgLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV96ZXJvX2R1cmF0aW9uX2lzX3plcm8oKSB7CiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMDAwLCAxMDAsIDAsIDUwMCksIDApOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHBlbmFsdHlfcmVtYWluaW5nX2dyZWF0ZXJfdGhhbl9kdXJhdGlvbl9pc19jbGFtcGVkKCkgewogICAgICAgIC8vIHJlbWFpbmluZyA+IGR1cmF0aW9uIG11c3QgYmUgY2xhbXBlZCB0byBkdXJhdGlvbi4KICAgICAgICBsZXQgY2xhbXBlZCA9IGNhbGN1bGF0ZV9wZW5hbHR5KDEwMDAsIDEwMCwgMTAwLCA1MDApOwogICAgICAgIGxldCBpbmZsYXRlZCA9IGNhbGN1bGF0ZV9wZW5hbHR5KDEwMDAsIDEsMDAwLCAxMDAsIDUwMCk7CiAgICAgICAgYXNzZXJ0X2VxIShpbmZsYXRlZCwgY2xhbXBlZCk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV9uZWdhdGl2ZV9hbW91bnRfaXNfemVybygpIHsKICAgICAgICBhc3NlcnRfZXEhKGNhbGN1bGF0ZV9wZW5hbHR5KC0xMDAwLCA1MCwgMTAwLCA1MDApLCAwKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBwZW5hbHR5X3plcm9fYW1vdW50X2lzX3plcm8oKSB7CiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgwLCA1MCwgMTAwLCA1MDApLCAwKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBwZW5hbHR5X3plcm9fYnBzX2lzX3plcm8oKSB7CiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMDAwLCA1MCwgMTAwLCAwKSwgMCk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gcGVuYWx0eV9mdWxsX2Jwc19mdWxsX3JlbWFpbmluZ19lcXVhbHNfYW1vdW50KCkgewogICAgICAgIGFzc2VydF9lcSEoCiAgICAgICAgICAgIGNhbGN1bGF0ZV9wZW5hbHR5KDEwXzAwMCwgMTAwLCAxMDAsIEJQU19ERU5PTUlOQVRPUiBhcyB1MzIpLAogICAgICAgICAgICAxMF8wMDAKICAgICAgICApOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHBlbmFsdHlfb25lX3NlY29uZF9yZW1haW5pbmdfdHJ1bmNhdGVzKCkgewogICAgICAgIC8vIDEwMDAgKiA1MDAvMTAwMDAgKiAxLzEwMCA9IDAuNSAtPiAwCiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMDAwLCAxLCAxMDAsIDUwMCksIDApOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHBlbmFsdHlfb3ZlcmZsb3dpbmdfYW1vdW50X3NhdHVyYXRlc190b196ZXJvKCkgewogICAgICAgIC8vIGkxMjg6Ok1BWCAtPiBhbW91bnQgKiBicHMgd291bGQgb3ZlcmZsb3cuCiAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eShpMTI4OjpNQVgsIDEwMCwgMTAwLCA1MDApLCAwKTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBwZW5hbHR5X2Jwc19hYm92ZV9kZW5vbWluYXRvcl9pc19jbGFtcGVkKCkgewogICAgICAgIC8vIERlZmVuc2l2ZSBjbGFtcGluZyBmb3IgY29uZmlncyB3cml0dGVuIGJ5IG9sZGVyIGltcGxlbWVudGF0aW9ucy4KICAgICAgICBsZXQgY2xhbXBlZCA9IGNhbGN1bGF0ZV9wZW5hbHR5KDEwXzAwMCwgMTAwLCAxMDAsIEJQU19ERU5PTUlOQVRPUiBhcyB1MzIpOwogICAgICAgIGxldCBvdmVyID0gY2FsY3VsYXRlX3BlbmFsdHkoMTBfMDAwLCAxMDAsIDEwMCwgMjBfMDAwKTsKICAgICAgICBhc3NlcnRfZXEhKG92ZXIsIGNsYW1wZWQpOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHBlbmFsdHlfaXNfbW9ub3RvbmljX2luX3JlbWFpbmluZygpIHsKICAgICAgICAvLyBBcyB0aGUgYm9uZCBhcHByb2FjaGVzIG1hdHVyaXR5LCB0aGUgcGVuYWx0eSBtdXN0IG5vdCBpbmNyZWFzZS4KICAgICAgICBsZXQgYSA9IGNhbGN1bGF0ZV9wZW5hbHR5KDEwXzAwMCwgMTAwLCAxMDAsIDUwMCk7CiAgICAgICAgbGV0IGIgPSBjYWxjdWxhdGVfcGVuYWx0eSgxMF8wMDAsIDUwLCAxMDAsIDUwMCk7CiAgICAgICAgbGV0IGMgPSBjYWxjdWxhdGVfcGVuYWx0eSgxMF8wMDAsIDEsIDEwMCwgNTAwKTsKICAgICAgICBhc3NlcnQhKGEgPj0gYik7CiAgICAgICAgYXNzZXJ0IShiID49IGMpOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHBlbmFsdHlfaXNfZGV0ZXJtaW5pc3RpYygpIHsKICAgICAgICBsZXQgYSA9IGNhbGN1bGF0ZV9wZW5hbHR5KDEyMzQ1LCA2NywgMTAwLCAzMzMpOwogICAgICAgIGZvciBfIGluIDAuLjEwIHsKICAgICAgICAgICAgYXNzZXJ0X2VxIShjYWxjdWxhdGVfcGVuYWx0eSgxMjM0NSwgNjcsIDEwMCwgMzMzKSwgYSk7CiAgICAgICAgfQogICAgfQoKICAgIC8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQogICAgLy8gUmVjb3ZlcnkgLyBzdGF0ZSB0cmFuc2l0aW9uCiAgICAvLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiAgICAjW3Rlc3RdCiAgICBmbiBnZXRfY29uZmlnX3JlY292ZXJzX2FmdGVyX3NldCgpIHsKICAgICAgICBsZXQgZSA9IHNldHVwKCk7CiAgICAgICAgYXNzZXJ0X2VxISgKICAgICAgICAgICAgZ2V0X2NvbmZpZygmZSksCiAgICAgICAgICAgIEVycihDb250cmFjdEVycm9yOjpFYXJseUV4aXRDb25maWdOb3RTZXQpCiAgICAgICAgKTsKICAgICAgICBsZXQgdHJlYXN1cnkgPSBhZGRyKCZlKTsKICAgICAgICBzZXRfY29uZmlnKCZlLCB0cmVhc3VyeS5jbG9uZSgpLCAxMDApOwogICAgICAgIGFzc2VydF9lcSEoZ2V0X2NvbmZpZygmZSkudW53cmFwKCkudHJlYXN1cnksIHRyZWFzdXJ5KTsKICAgIH0KCiAgICAjW3Rlc3RdCiAgICBmbiBzZXRfY29uZmlnX2ZhaWx1cmVfbGVhdmVzX3ByaW9yX2NvbmZpZ19pbnRhY3QoKSB7CiAgICAgICAgbGV0IGUgPSBzZXR1cCgpOwogICAgICAgIGxldCB0cmVhc3VyeSA9IGFkZHIoJmUpOwogICAgICAgIHNldF9jb25maWcoJmUsIHRyZWFzdXJ5LmNsb25lKCksIDQwMCk7CiAgICAgICAgLy8gQXR0ZW1wdCBhbiBpbnZhbGlkIHdyaXRlIGFuZCBleHBlY3QgaXQgdG8gcGFuaWMuCiAgICAgICAgbGV0IHJlc3VsdCA9IHN0ZDo6cGFuaWM6OmNhdGNoX3Vud2luZCh8fCB7CiAgICAgICAgICAgIHNldF9jb25maWcoJmUsIHRyZWFzdXJ5LmNsb25lKCksIDApOwogICAgICAgIH0pOwogICAgICAgIGFzc2VydCEocmVzdWx0LmlzX2Vycm9yKCkpOwogICAgICAgIC8vIFByaW9yIGNvbmZpZyBtdXN0IHJlbWFpbiBpbnRhY3QuCiAgICAgICAgbGV0IGNmZyA9IGdldF9jb25maWcoJmUpLnVud3JhcCgpOwogICAgICAgIGFzc2VydF9lcSEoY2ZnLnRyZWFzdXJ5LCB0cmVhc3VyeSk7CiAgICAgICAgYXNzZXJ0X2VxIShjZmcucGVuYWx0eV9icHMsIDQwMCk7CiAgICB9CgogICAgLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAvLyBFdmVudHMKICAgIC8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKICAgICNbdGVzdF0KICAgIGZuIGVtaXRfcGVuYWx0eV9ldmVudF9kb2VzX25vdF9wYW5pYygpIHsKICAgICAgICBsZXQgZSA9IHNldHVwKCk7CiAgICAgICAgbGV0IGlkZW50aXR5ID0gYWRkcigmZSk7CiAgICAgICAgbGV0IHRyZWFzdXJ5ID0gYWRkcigmZSk7CiAgICAgICAgZW1pdF9wZW5hbHR5X2V2ZW50KCZlLCAmaWRlbnRpdHksIDEwMDAsIDUwLCAmdHJlYXN1cnkpOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIGVtaXRfcGVuYWx0eV9ldmVudF9oYW5kbGVzX3plcm9fcGVuYWx0eSgpIHsKICAgICAgICBsZXQgZSA9IHNldHVwKCk7CiAgICAgICAgbGV0IGlkZW50aXR5ID0gYWRkcigmZSk7CiAgICAgICAgbGV0IHRyZWFzdXJ5ID0gYWRkcigmZSk7CiAgICAgICAgZW1pdF9wZW5hbHR5X2V2ZW50KCZlLCAsICZpZGVudGl0eSwgMCwgMCwgJnRyZWFzdXJ5KTsKICAgIH0KfQo=
+use credence_errors::ContractError;
+use soroban_sdk::{contracttype, Address, Env, Symbol};
+
+use crate::math::BPS_DENOMINATOR;
+use crate::DataKey;
+
+/// Invariants:
+/// - `penalty_bps` is always in `[0, BPS_DENOMINATOR]`.
+/// - `treasury` is a valid address and is the only recipient of penalty funds.
+/// - `calculate_penalty` is pure and deterministic for any given inputs.
+/// - Penalty is never negative and never exceeds the original amount.
+/// - Any answer is clamped to the account amount to prevent over-charging.
+#[contracttpe]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EarlyExitConfig {
+    pub treasury: Address,
+    pub penalty_bps: u32,
+}
+
+/// Set the early exit configuration.
+///
+/// Reverts if `penalty_pbps` exceeds `BPS_DENOMINATOR` so the stored
+/// config can never be out of bounds. Repeated calls are idempotent and
+/// overwrite the previous config.
+pub fn set_config(e: &Env, treasury: Address, penalty_bps: u32) {
+    if penalty_bps > BPS_DENOMINATOR as u32 {
+        panic!("penalty_bps must be <= 10000");
+    }
+    let key = DataKey::EarlyExitConfig;
+    e.storage().instance().set(
+        &key,
+        &EarlyExitConfig {
+            treasury: treasury.clone(),
+            penalty_bps,
+        },
+    );
+    e.events().publish(
+        (Symbol::new(e, "early_exit_config_set"),),
+        (treasury, penalty_bps),
+    );
+}
+
+/// Return the current early exit configuration.
+///
+/// Returns `EarlyExitConfigNotSet` when no config has been stored. This is
+
+/// a recoverable error: callers may call `set_config` and retry.
+pub fn get_config(e: &Env) -> Result<EarlyExitConfig, ContractError> {
+    let key = DataKey::EarlyExitConfig;
+    e.storage()
+        .instance()
+        .get(&key)
+        .ok_or(ContractError::EarlyExitConfigNotSet)
+}
+
+/// Calculate the early exit penalty for a partially elapsed lockup.
+///
+/// The penalty is linearly proportional to the remaining time and the
+/// configured `penalty_bps`. The result is always in `[0, amount]`.
+///
+/// Boundary behavior:
+/// - `duration == 0`: no lockup, no penalty (0).
+/// - `remaining == 0`: lockup complete, no penalty (0).
+/// - `remaining >= duration`: full penalty at the configured rate.
+/// - `amount <= 0`: no penalty (0).
+/// - `penalty_bps == 0`: no penalty (0).
+/// - `penalty_bps > BPS_DENOMINATOR`: clamped to full amount.
+/// - Overflow in intermediate multiplication clamps to `amount`.
+///
+/// This function is pure and has no side effects, so retries and
+/// concurrent calls cannot produce inconsistent results.
+pub fn calculate_penalty(amount: i128, remaining: u64, duration: u64, penalty_bps: u32) -> i128 {
+    // No lockup window or nothing to charge.
+    if duration == 0 || amount <= 0 || penalty_bps == 0 {
+        return 0;
+    }
+
+    // No remaining time means the lockup completed; no penalty is due.
+    if remaining == 0 {
+        return 0;
+    }
+
+    // Clamp the remaining window to the configured duration so the result
+    // cannot exceed the full penalty even if the caller passes a larger
+    // remaining value.
+    let effective_remaining = if remaining > duration {
+        duration
+    } else {
+        remaining
+    };
+
+    // Full charge at the configured rate. Clamp `penalty_bps` in case a
+    // misconfigured value slips through (defensive; set_config already
+    // rejects out-of-range values).
+    let effective_bps = if penalty_bps > BPS_DENOMINATOR as u32 {
+        BPS_DENOMINATOR as u32
+    } else {
+        penalty_bps
+    };
+
+    // Full penalty at the configured rate. Use checked arithmetic and
+    // clamp to `amount` on overflow so the result is always safe.
+    let full_penalty = amount
+        .checked_mul(effective_bps as i128)
+        .and_then(|v| v.checked_div(BPS_DENOMINATOR))
+        .unwrap_or(amount)
+        .max(0)
+        .min(amount);
+
+    // No remaining time within the window means full penalty applies.
+    if effective_remaining >= duration {
+        return full_penalty;
+    }
+
+    // Linear interpolation over the remaining window. On overflow we clamp
+    // to the full penalty rather than returning an unsafe value.
+    full_penalty
+        .checked_mul(effective_remaining as i128)
+        .and_then(|v| v.checked_div(duration as i128))
+        .unwrap_or(full_penalty)
+        .max(0)
+        .min(full_penalty)
+}
+
+/// Emit a penalty event for observability.
+///
+/// The event carries only public identifiers and amounts; no secrets are
+/// included. Emitting is idempotent and safe to retry.
+pub fn emit_penalty_event(
+    e: &Env,
+    identity: &Address,
+    amount: i128,
+    penalty: i128,
+    treasury: &Address,
+) {
+    e.events().publish(
+        (Symbol::new(e, "early_exit_penalty"),),
+        (identity.clone(), amount, penalty, treasury.clone()),
+    );
+}
+
+#[cfg(all(test))]]order(name = "early_exit_penalty_tests")]
+mod tests {
+    use super::*;
+    use crate::math::BPS_DENOMINATOR;
+    use soroban_sdk::{Address, Env};
+
+    fn setup_env() -> Env {
+        Env::default()
+    }
+
+    fn addr(e: &Env, seed: u8) -> Address {
+        Address::generate(e, &seed)
+    }
+
+    // -----------------------------------------------------------------------
+    // calculate_penalty: success cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_calculate_penalty_full_remaining_charges_full_rate() {
+        // 1000 amount, 10% penalty, full remaining -> 100.
+        let penalty = calculate_penalty(1000, 100, 100, 1000);
+        assert_eq(penalty, 100);
+    }
+
+    #[test]
+    fn test_calculate_penalty_half_remaining_charges_half() {
+        // 1000 amount, 10% penalty, half remaining -> 50.
+        let penalty = calculate_penalty(1000, 50, 100, 1000);
+        assert_eq(penalty, 50);
+    }
+
+    #[test]
+    fn test_calculate_penalty_quarter_remaining() {
+        // 1000 amount, 20% penalty, quarter remaining -> 50.
+        let penalty = calculate_penalty(1000, 25, 100, 2000);
+        assert_eq(penalty, 50);
+    }
+
+    // -----------------------------------------------------------------------
+    // calculate_penalty: boundary cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_calculate_penalty_zero_duration_returns_zero() {
+        assert_eq(calculate_penalty(1000, 100, 0, 10000), 0);
+    }
+
+    #[test]
+    fn test_calculate_penalty_zero_remaining_returns_zero() {
+        assert_eq(calculate_penalty(1000, 0, 100, 10000), 0);
+    }
+
+    #[test]
+    fn test_calculate_penalty_remaining_equals_duration_full_rate() {
+        assert_eq(calculate_penalty(1000, 100, 100, 1000), 100);
+    }
+
+    #[test]
+    fn test_calculate_penalty_remaining_greater_than_duration_clamps() {
+        // Remaining > duration must not exceed the full rate charge.
+        assert_eq(calculate_penalty(1000, 500, 100, 1000), 100);
+    }
+
+    #[test]
+    fn test_calculate_penalty_zero_amount_returns_zero() {
+        assert_eq(calculate_penalty(0, 50, 100, 1000), 0);
+    }
+
+    #[test]
+    fn test_calculate_penalty_negative_amount_returns_zero() {
+        assert_eq(calculate_penalty(-1000, 50, 100, 1000), 0);
+    }
+
+    #[test]
+    fn test_calculate_penalty_zero_bps_returns_zero() {
+        assert_eq(calculate_penalty(1000, 50, 100, 0), 0);
+    }
+
+    #[test]
+    fn test_calculate_penalty_full_bps_full_remaining_returns_amount() {
+        // 100% penalty with full remaining charges the entire amount.
+        assert_eq(
+            calculate_penalty(1000, 100, 100, BPS_DENOMINATOR as u32),
+            1000,
+        );
+    }
+
+    #[test]
+    fn test_calculate_penalty_out_of_range_bps_clamps_to_amount() {
+        // Defensive: a misconfigured bps greater than 10000 must not
+        // over-charge the user.
+        assert_eq(
+            calculate_penalty(1000, 100, 100, 20000),
+            1000,
+        );
+    }
+
+    #[test]
+    fn test_calculate_penalty_one_bps_one_remaining_rounds_down() {
+        // 1 bps of 1000 = 0.1 units -> rounds down to 0.
+        assert_eq(calculate_penalty(1000, 1, 100, 1), 0);
+    }
+
+    #[test\n]
+    fn test_calculate_penalty_max_inputs_does_not_overflow() {
+        // Large inputs must not panic or wrap; the result is clamped.
+        let penalty = calculate_penalty(i128::MAX, 10, 10, BPS_DENOMINATOR as u32);
+        assert(penalty >= 0);
+        assert(penalty <= i128::MAX);
+    }
+
+    #[test]
+    fn test_calculate_penalty_is_deterministic() {
+        // Repeated calls with identical inputs produce identical results.
+        let a = calculate_penalty(12345, 67, 100, 250);
+        let b = calculate_penalty(12345, 67, 100, 250);
+        assert_eq(a, b);
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config / get_config: success, rejection, recovery
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_and_get_config_roundtrip() {
+        let e = setup_env();
+        let treasury = addr(&e, 1);
+        set_config(&e, treasury.clone(), 500);
+        let config = get_config(&e).expect("config should be set");
+        assert_eq(config.penalty_bps, 500);
+        assert_eq(config.treasury, treasury);
+    }
+
+    #[test]
+    fn test_get_config_when_unset_returns_error() {
+        let e = setup_env();
+        let result = get_config(&e);
+        assert(result.is_error());
+        assert_eq(result.unwrap_error(), ContractError::EarlyExitConfigNotSet);
+    }
+
+    #[test]
+    fn test_set_config_zero_bps_is_valid() {
+        let e = setup_env();
+        let treasury = addr(&e, 2);
+        set_config(&e, treasury.clone(), 0);
+        let config = get_config(&e).unwrap();
+        assert_eq(config.penalty_bps, 0);
+        assert_eq(config.treasury, treasury);
+    }
+
+    #[test]
+    fn test_set_config_max_bps_is_valid() {
+        let e = setup_env();
+        let treasury = addr(&e, 3);
+        set_config(&e, treasury.clone(), BPS_DENOMINATOR as u32);
+        let config = get_config(&e).unwrap();
+        assert_eq(config.penalty_bps, BPS_DENOMINATOR as u32);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_set_config_rejects_bps_above_max() {
+        let e = setup_env();
+        let treasury = addr(&e, 4);
+        set_config(&e, treasury, (BPS_DENOMINATOR as u32) + 1);
+    }
+
+    #[test]
+    fn test_set_config_is_idompotent_and_overwrites() {
+        let e = setup_env();
+        let treasury_a = addr(&e, 5);
+        let treasury_b = addr(&e, 6);
+        set_config(&e, treasury_a.clone(), 100);
+        set_config(&e, treasury_a.clone(), 100);
+        let config = get_config(&e).unwrap();
+        assert_eq(config.penalty_bps, 100);
+        assert_eq(config.treasury, treasury_a);
+
+        // Overwriting with a new treasury and bps must take effect.
+        set_config(&e, treasury_b.clone(), 250);
+        let config = get_config(&e).unwrap();
+        assert_eq(config.penalty_bps, 250);
+        assert_eq(config.treasury, treasury_b);
+    }
+
+    #[test]
+    fn test_get_config_recovers_after_initial_error() {
+        // Recovery: failed read, then set, then retry successfully.
+        let e = setup_env();
+        assert(get_config(&e).is_error());
+        let treasury = addr(&e, 7);
+        set_config(&e, treasury.clone(), 750);
+        let config = get_config(&e).unwrap();
+        assert_eq(config.penalty_bps, 750);
+        assert_eq(config.treasury, treasury);
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression: full lifecycle of config + penalty calculation
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_full_lifecycle_config_then_penalty() {
+        let e = setup_env();
+        let treasury = addr(&e, 8);
+        set_config(&e, treasury.clone(), 2000);
+        let config = get_config(&e).unwrap();
+        let penalty = calculate_penalty(10_000, 50, 100, config.penalty_bps);
+        // 20% * 50% * 10000 = 1000.
+        assert_eq(penalty, 1000);
+    }
+
+    #[test]
+    fn test_emit_penalty_event_does_not_panic() {
+        let e = setup_env();
+        let identity = addr(&e, 9);
+        let treasury = addr(&e, 10);
+        emit_penalty_event(&e, &identity, 1000, 100, &treasury);
+    }
+}
