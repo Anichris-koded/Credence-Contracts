@@ -1421,33 +1421,14 @@ impl AdminContract {
     ///
     /// This is a pure read: it never mutates storage, never advances
     /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
-    /// snapshot it always returns the same value, so it is safe to call from
-    /// other contracts and from off-chain simulations.
+    /// snapshot it always returns the same `(min_admins, max_admins)` pair.
     ///
-    /// The returned `(min_admins, max_admins)` pair is guaranteed to satisfy
-    /// `1 <= min_admins <= max_admins` for any successfully initialized
-    /// contract, because [`Self::initialize`] rejects `min_admins == 0` and
-    /// `min_admins > max_admins` before writing either key.
-    ///
-    /// # Boundary cases
-    ///
-    /// * Uninitialized contract — panics with
-    ///   [`ContractError::NotInitialized`] (no partial read, no default
-    ///   fallback that could mask a missing configuration).
-    /// * Partially initialized storage (only one of the two keys present) —
-    ///   panics with [`ContractError::NotInitialized`] rather than returning a
-    ///   half-populated configuration, so callers never observe an
-    ///   inconsistent `(min, max)` pair.
-    /// * Boundary values — `min_admins == max_admins` is valid and returned
-    ///   verbatim; `min_admins == 1` and `max_admins == u32::MAX` are valid.
-    ///
-    /// # Security
-    ///
-    /// This function performs no authorization check and exposes no sensitive
-    /// data: the admin-count bounds are already observable through privileged
-    /// entrypoints and are required for clients to size their governance
-    /// operations. It never returns a default on missing state, which would
-    /// otherwise let a caller act on a configuration that was never committed.
+    /// Failure boundary: on an uninitialized contract (or one whose config
+    /// keys were never written) this panics with
+    /// [`ContractError::NotInitialized`] rather than returning a defaulted
+    /// `(0, 0)` tuple. Returning a fabricated default would let callers
+    /// silently proceed against a contract that has no enforced admin
+    /// bounds, so the failure is surfaced explicitly and atomically.
     ///
     /// # Returns
     /// A tuple of (min_admins, max_admins)
