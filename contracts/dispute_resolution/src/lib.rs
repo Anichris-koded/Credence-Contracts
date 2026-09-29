@@ -4,6 +4,9 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, String, Ve
 mod error;
 use error::DisputeError;
 
+#[cfg(test)]
+mod test_dispute_error;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DisputeStatus {
     Open,
