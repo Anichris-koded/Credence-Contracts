@@ -86,6 +86,10 @@ mod test_zero_address;
 #[cfg(test)]
 mod test_fork_divergent;
 
+/// Boundary and recovery coverage for the security module.
+#[cfg(test)]
+mod security;
+
 /// Chaos testing suite for simulating host and token failures.
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod chaos_token;
