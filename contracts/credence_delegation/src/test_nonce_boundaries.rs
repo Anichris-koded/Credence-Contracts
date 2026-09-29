@@ -260,6 +260,9 @@ fn nonce_ttl_refreshes_at_threshold_and_never_shortens_existing_lifetime() {
     let key = DataKey::Nonce(owner.clone());
     seed(&e, &contract, &owner, 42);
     e.as_contract(&contract, || {
+        // Keep the harness callable while advancing ledgers to the nonce's
+        // renewal threshold; instance archival is a separate lifecycle.
+        e.storage().instance().extend_ttl(MAX_TTL / 2, MAX_TTL);
         assert_eq!(e.storage().persistent().get_ttl(&key), MIN_NONCE_TTL)
     });
     let delta = MIN_NONCE_TTL / 2 + 1;
