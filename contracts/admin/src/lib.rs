@@ -1641,6 +1641,9 @@ impl AdminContract {
 mod test_pausable;
 
 #[cfg(test)]
+mod test_unpause_failure_boundaries;
+
+#[cfg(test)]
 mod test_pause_failure_boundaries;
 
 #[cfg(test)]
