@@ -7,12 +7,15 @@
 //! that occur after nonce consumption. Competing submissions are serialized,
 //! as on ledger; exactly one may spend a given nonce.
 
+extern crate std;
+
 use super::*;
 use crate::{
     CredenceDelegation, CredenceDelegationClient, DelegationType, MAX_NONCE_INVALIDATION_SPAN,
 };
 use soroban_sdk::testutils::{storage::Persistent as _, Address as _, Events as _, Ledger as _};
 use soroban_sdk::{contract, contractimpl, Error};
+use std::string::ToString;
 
 #[contract]
 struct NonceHarness;
