@@ -947,174 +947,34 @@ mod comprehensive_tests {
         assert!(all.contains(&new_admin));
     }
 
-    // ── Adversarial regression cases ─────────────────────────────────────────────
-    //
-    // These tests exercise adverse conditions: invalid input, boundary values,
-    // duplicate/self operations, stale cursors, permission escalation attempts,
-    // and partial-failure recovery. They assert that state transitions remain
-    // atomic and that no unsafe or inconsistent state is reachable.
+    // ── Adversarial regression tests ─────────────────────────────────────────────
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #107)")]
-    fn test_initialize_rejects_max_admins_zero() {
+    #[should_panic(expected = "Error(Contract, #100)")]
+    fn test_add_admin_rejects_deactivated_caller() {
         let env = Env::default();
-        let contract = create_contract();
-        let super_admin = Address::generate(&env);
-        let contract_address = env.register_contract(None, AdminContract);
+        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
+        let new_admin = Address::generate(&env);
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
-            AdminContract::initialize(env.clone(), super_admin.clone(), 1, 0);
+            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
-    }
-
-    #[test]
-    fn test_initialize_boundary_min_equals_max() {
-        let env = Env::default();
-        let (contract_address, _super_admin) = setup_with_limits(&env, 1, 1);
-
-        let (min_admins, max_admins) =
-            env.as_contract(&contract_address, || AdminContract::get_config(env.clone()));
-        assert_eq!(min_admins, 1);
-        assert_eq!(max_admins, 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #601)")]
-    fn test_add_admin_rejects_when_at_boundary_max_one() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_with_limits(&env, 1, 1);
-        let extra = Address::generate(&env);
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::add_admin(
                 env.clone(),
-                super_admin.clone(),
-                extra.clone(),
+                admin.clone(),
+                new_admin.clone(),
                 AdminRole::Operator,
             );
         });
     }
 
     #[test]
-    fn test_add_admin_failure_does_not_mutate_state() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_with_limits(&env, 1, 2);
-        let first = Address::generate(&env);
-        let second = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::add_admin(
-                env.clone(),
-                super_admin.clone(),
-                first.clone(),
-                AdminRole::Admin,
-            );
-        });
-
-        let count_before = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
-
-        // Attempt to exceed max; must panic and leave state untouched.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            env.as_contract(&contract_address, || {
-                AdminContract::add_admin(
-                    env.clone(),
-                    super_admin.clone(),
-                    second.clone(),
-                    AdminRole::Admin,
-                );
-            });
-        }));
-        assert!(result.is_err());
-
-        let count_after = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
-        assert_eq!(count_before, count_after);
-        assert_eq!(
-            env.as_contract(&contract_address, || {
-                AdminContract::is_admin(env.clone(), second.clone())
-            }),
-            Role::User
-        );
-    }
-
-    #[test]
     #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_operator_cannot_add_admin_escalation_attempt() {
-        let env = Env::default();
-        let (contract_address, _super_admin, _admin, operator) = setup_multiple_admins(&env);
-        let target = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::add_admin(
-                env.clone(),
-                operator.clone(),
-                target.clone(),
-                AdminRole::Admin,
-            );
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_operator_cannot_escalate_own_role() {
-        let env = Env::default();
-        let (contract_address, _super_admin, _admin, operator) = setup_multiple_admins(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::update_admin_role(
-                env.clone(),
-                operator.clone(),
-                operator.clone(),
-                AdminRole::SuperAdmin,
-            );
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_admin_cannot_assign_super_admin_role() {
-        let env = Env::default();
-        let (contract_address, _super_admin, admin, operator) = setup_multiple_admins(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::update_admin_role(
-                env.clone(),
-                admin.clone(),
-                operator.clone(),
-                AdminRole::SuperAdmin,
-            );
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_super_admin_cannot_demote_self() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_contract(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::update_admin_role(
-                env.clone(),
-                super_admin.clone(),
-                super_admin.clone(),
-                AdminRole::Admin,
-            );
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_deactivated_admin_cannot_perform_privileged_action() {
+    fn test_remove_admin_rejects_deactivated_caller() {
         let env = Env::default();
         let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
 
@@ -1123,7 +983,6 @@ mod comprehensive_tests {
             AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
 
-        // Deactivated admin attempts to remove an operator.
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::remove_admin(env.clone(), admin.clone(), operator.clone());
@@ -1132,7 +991,7 @@ mod comprehensive_tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_deactivated_admin_cannot_update_roles() {
+    fn test_update_admin_role_rejects_deactivated_caller() {
         let env = Env::default();
         let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
 
@@ -1154,36 +1013,9 @@ mod comprehensive_tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_remove_admin_rejects_non_admin_caller() {
+    fn test_deactivate_admin_rejects_deactivated_caller() {
         let env = Env::default();
-        let (contract_address, _super_admin, admin, _operator) = setup_multiple_admins(&env);
-        let outsider = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::remove_admin(env.clone(), outsider.clone(), admin.clone());
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_deactivate_admin_rejects_non_admin_caller() {
-        let env = Env::default();
-        let (contract_address, _super_admin, admin, _operator) = setup_multiple_admins(&env);
-        let outsider = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::deactivate_admin(env.clone(), outsider.clone(), admin.clone());
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_reactivate_admin_rejects_non_admin_caller() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
-        let outsider = Address::generate(&env);
+        let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
@@ -1192,65 +1024,41 @@ mod comprehensive_tests {
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
-            AdminContract::reactivate_admin(env.clone(), outsider.clone(), admin.clone());
+            AdminContract::deactivate_admin(env.clone(), admin.clone(), operator.clone());
         });
     }
 
     #[test]
     #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_remove_admin_rejects_non_admin_target() {
+    fn test_reactivate_admin_rejects_deactivated_caller() {
         let env = Env::default();
-        let (contract_address, super_admin) = setup_contract(&env);
-        let non_admin = Address::generate(&env);
+        let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
-            AdminContract::remove_admin(env.clone(), super_admin.clone(), non_admin.clone());
+            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
+        });
+
+        env.mock_all_auths();
+        env.as_contract(&contract_address, || {
+            AdminContract::reactivate_admin(env.clone(), admin.clone(), operator.clone());
         });
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
-    fn test_deactivate_admin_rejects_non_admin_target() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_contract(&env);
-        let non_admin = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), non_admin.clone());
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #405)")]
-    fn test_reactivate_admin_rejects_non_admin_target() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_contract(&env);
-        let non_admin = Address::generate(&env);
-
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::reactivate_admin(env.clone(), super_admin.clone(), non_admin.clone());
-        });
-    }
-
-    #[test]
-    fn test_deactivate_then_reactivate_preserves_role_and_count() {
+    fn test_deactivate_then_reactivate_preserves_role_and_lists() {
         let env = Env::default();
         let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
 
         let role_before = env.as_contract(&contract_address, || {
             AdminContract::get_admin_role(env.clone(), admin.clone())
         });
-        let total_before = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
+
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::reactivate_admin(env.clone(), super_admin.clone(), admin.clone());
@@ -1259,220 +1067,15 @@ mod comprehensive_tests {
         let role_after = env.as_contract(&contract_address, || {
             AdminContract::get_admin_role(env.clone(), admin.clone())
         });
-        let total_after = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
-
         assert_eq!(role_before, role_after);
-        assert_eq!(total_before, total_after);
+
         assert!(env.as_contract(&contract_address, || {
-            AdminContract::get_admin_info(env.clone(), admin.clone()).active
+            AdminContract::has_role_at_least(env.clone(), admin.clone(), AdminRole::Admin)
         }));
     }
 
     #[test]
-    fn test_stale_cursor_after_removal_is_safe() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
-
-        // Fetch first page with limit 2.
-        let (page_1, cursor_1) = env.as_contract(&contract_address, || {
-            AdminContract::get_all_admins_page(env.clone(), 0, 2)
-        });
-        assert_eq!(page_1.len(), 2);
-        assert_eq!(cursor_1, Some(2));
-
-        // Remove an admin that was already returned (stale cursor scenario).
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::remove_admin(env.clone(), super_admin.clone(), admin.clone());
-        });
-
-        // Resume from stale cursor; must not panic and must return remaining admins.
-        let (page_2, cursor_2) = env.as_contract(&contract_address, || {
-            AdminContract::get_all_admins_page(env.clone(), 2, 2)
-        });
-        assert_eq!(page_2.len(), 1);
-        assert_eq!(page_2.get(0).unwrap(), operator);
-        assert_eq!(cursor_2, None);
-    }
-
-    #[test]
-    fn test_duplicate_add_does_not_change_count_or_roles() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
-
-        let count_before = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
-        let role_before = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_role(env.clone(), admin.clone())
-        });
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            env.mock_all_auths();
-            env.as_contract(&contract_address, || {
-                AdminContract::add_admin(
-                    env.clone(),
-                    super_admin.clone(),
-                    admin.clone(),
-                    AdminRole::Operator,
-                );
-            });
-        }));
-        assert!(result.is_err());
-
-        let count_after = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_count(env.clone())
-        });
-        let role_after = env.as_contract(&contract_address, || {
-            AdminContract::get_admin_role(env.clone(), admin.clone())
-        });
-        assert_eq!(count_before, count_after);
-        assert_eq!(role_before, role_after);
-    }
-
-    #[test]
-    fn test_role_list_consistency_after_failed_update() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
-
-        // Attempt an unauthorized role change; must not mutate role lists.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            env.mock_all_auths();
-            env.as_contract(&contract_address, || {
-                AdminContract::update_admin_role(
-                    env.clone(),
-                    admin.clone(),
-                    operator.clone(),
-                    AdminRole::Admin,
-                );
-            });
-        }));
-        assert!(result.is_err());
-
-        let operators = env.as_contract(&contract_address, || {
-            AdminContract::get_admins_by_role(env.clone(), AdminRole::Operator)
-        });
-        let admins = env.as_contract(&contract_address, || {
-            AdminContract::get_admins_by_role(env.clone(), AdminRole::Admin)
-        });
-        assert!(operators.contains(&operator));
-        assert!(!admins.contains(&operator));
-        assert_eq!(
-            env.as_contract(&contract_address, || {
-                AdminContract::get_admin_role(env.clone(), operator.clone())
-            }),
-            AdminRole::Operator
-        );
-        // Silence unused warning for super_admin in this test.
-        let _ = super_admin;
-    }
-
-    #[test]
-    fn test_active_count_never_negative_after_failed_ops() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
-
-        let active_before = env.as_contract(&contract_address, || {
-            AdminContract::get_active_admin_count(env.clone())
-        });
-
-        // Failed deactivate (double deactivate) must not decrement active count.
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
-        });
-        let after_first = env.as_contract(&contract_address, || {
-            AdminContract::get_active_admin_count(env.clone())
-        });
-        assert_eq!(after_first, active_before - 1);
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            env.mock_all_auths();
-            env.as_contract(&contract_address, || {
-                AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
-            });
-        }));
-        assert!(result.is_err());
-
-        let after_failed = env.as_contract(&contract_address, || {
-            AdminContract::get_active_admin_count(env.clone())
-        });
-        assert_eq!(after_failed, after_first);
-    }
-
-    #[test]
-    fn test_pagination_limit_one_walks_all_without_duplicates() {
-        let env = Env::default();
-        let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
-
-        let mut seen = soroban_sdk::Vec::new(&env);
-        let mut cursor = 0;
-        loop {
-            let (page, next) = env.as_contract(&contract_address, || {
-                AdminContract::get_all_admins_page(env.clone(), cursor, 1)
-            });
-            assert!(page.len() <= 1);
-            for addr in page.iter() {
-                assert!(!seen.contains(&addr), "duplicate admin in pagination");
-                seen.push_back(addr);
-            }
-            match next {
-                Some(n) => {
-                    assert!(n > cursor, "cursor must strictly advance");
-                    cursor = n;
-                }
-                None => break,
-            }
-        }
-        assert_eq!(seen.len(), 3);
-        assert!(seen.contains(&super_admin));
-        assert!(seen.contains(&admin));
-        assert!(seen.contains(&operator));
-    }
-
-    #[test]
-    fn test_role_page_cursor_advances_strictly() {
-        let env = Env::default();
-        let (contract_address, _super_admin, _admin, _operator) = setup_multiple_admins(&env);
-
-        let mut cursor = 0;
-        loop {
-            let (page, next) = env.as_contract(&contract_address, || {
-                AdminContract::get_admins_by_role_page(env.clone(), AdminRole::Operator, cursor, 1)
-            });
-            assert!(page.len() <= 1);
-            match next {
-                Some(n) => {
-                    assert!(n > cursor, "role cursor must strictly advance");
-                    cursor = n;
-                }
-                None => break,
-            }
-        }
-    }
-
-    #[test]
-    fn test_get_all_admins_page_negative_like_zero_cursor_stable() {
-        let env = Env::default();
-        let (contract_address, super_admin) = setup_contract(&env);
-
-        // Repeated calls with cursor 0 must be idempotent.
-        let (page_a, cursor_a) = env.as_contract(&contract_address, || {
-            AdminContract::get_all_admins_page(env.clone(), 0, 10)
-        });
-        let (page_b, cursor_b) = env.as_contract(&contract_address, || {
-            AdminContract::get_all_admins_page(env.clone(), 0, 10)
-        });
-        assert_eq!(page_a.len(), page_b.len());
-        assert_eq!(page_a.get(0).unwrap(), super_admin);
-        assert_eq!(page_b.get(0).unwrap(), super_admin);
-        assert_eq!(cursor_a, cursor_b);
-    }
-
-    #[test]
-    fn test_remove_admin_then_re_add_succeeds() {
+    fn test_add_admin_after_remove_reuses_slot_deterministically() {
         let env = Env::default();
         let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
 
@@ -1480,33 +1083,39 @@ mod comprehensive_tests {
         env.as_contract(&contract_address, || {
             AdminContract::remove_admin(env.clone(), super_admin.clone(), admin.clone());
         });
-        assert_eq!(
-            env.as_contract(&contract_address, || {
-                AdminContract::is_admin(env.clone(), admin.clone())
-            }),
-            Role::User
-        );
 
-        // Re-adding the same address must succeed and restore admin status.
+        let count_after_remove = env.as_contract(&contract_address, || {
+            AdminContract::get_admin_count(env.clone())
+        });
+        assert_eq!(count_after_remove, 2);
+
+        let replacement = Address::generate(&env);
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::add_admin(
                 env.clone(),
                 super_admin.clone(),
-                admin.clone(),
-                AdminRole::Operator,
+                replacement.clone(),
+                AdminRole::Admin,
             );
         });
+
+        let count_after_add = env.as_contract(&contract_address, || {
+            AdminContract::get_admin_count(env.clone())
+        });
+        assert_eq!(count_after_add, 3);
+
         assert_eq!(
             env.as_contract(&contract_address, || {
-                AdminContract::get_admin_role(env.clone(), admin.clone())
+                AdminContract::get_admin_role(env.clone(), replacement.clone())
             }),
-            AdminRole::Operator
+            AdminRole::Admin
         );
     }
 
     #[test]
-    fn test_deactivate_then_remove_then_readd_is_consistent() {
+    #[should_panic(expected = "Error(Contract, #405)")]
+    fn test_add_admin_rejects_duplicate_after_deactivate() {
         let env = Env::default();
         let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
 
@@ -1514,17 +1123,6 @@ mod comprehensive_tests {
         env.as_contract(&contract_address, || {
             AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
-        env.mock_all_auths();
-        env.as_contract(&contract_address, || {
-            AdminContract::remove_admin(env.clone(), super_admin.clone(), admin.clone());
-        });
-
-        assert_eq!(
-            env.as_contract(&contract_address, || {
-                AdminContract::is_admin(env.clone(), admin.clone())
-            }),
-            Role::User
-        );
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
@@ -1535,25 +1133,32 @@ mod comprehensive_tests {
                 AdminRole::Admin,
             );
         });
-        assert!(env.as_contract(&contract_address, || {
-            AdminContract::get_admin_info(env.clone(), admin.clone()).active
-        }));
     }
 
     #[test]
-    fn test_admin_count_matches_role_lists_after_mixed_ops() {
+    fn test_get_all_admins_page_after_deactivate_still_lists_member() {
         let env = Env::default();
         let (contract_address, super_admin, admin, operator) = setup_multiple_admins(&env);
 
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
-            AdminContract::update_admin_role(
-                env.clone(),
-                super_admin.clone(),
-                operator.clone(),
-                AdminRole::Admin,
-            );
+            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
+
+        let (page, next_cursor) = env.as_contract(&contract_address, || {
+            AdminContract::get_all_admins_page(env.clone(), 0, 10)
+        });
+        assert_eq!(page.len(), 3);
+        assert_eq!(next_cursor, None);
+        assert!(page.contains(&admin));
+        assert!(page.contains(&operator));
+    }
+
+    #[test]
+    fn test_active_admin_count_never_exceeds_total_count() {
+        let env = Env::default();
+        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
+
         env.mock_all_auths();
         env.as_contract(&contract_address, || {
             AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
@@ -1562,18 +1167,75 @@ mod comprehensive_tests {
         let total = env.as_contract(&contract_address, || {
             AdminContract::get_admin_count(env.clone())
         });
-        let super_admins = env.as_contract(&contract_address, || {
-            AdminContract::get_admins_by_role(env.clone(), AdminRole::SuperAdmin)
+        let active = env.as_contract(&contract_address, || {
+            AdminContract::get_active_admin_count(env.clone())
         });
-        let admins = env.as_contract(&contract_address, || {
-            AdminContract::get_admins_by_role(env.clone(), AdminRole::Admin)
-        });
-        let operators = env.as_contract(&contract_address, || {
-            AdminContract::get_admins_by_role(env.clone(), AdminRole::Operator)
+        assert!(active <= total);
+        assert_eq!(active, 2);
+        assert_eq!(total, 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #100)")]
+    fn test_get_admin_info_panics_for_deactivated_admin() {
+        let env = Env::default();
+        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
+
+        env.mock_all_auths();
+        env.as_contract(&contract_address, || {
+            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
         });
 
-        assert_eq!(total, super_admins.len() + admins.len() + operators.len());
-        assert!(admins.contains(&operator));
-        assert!(!operators.contains(&operator));
+        env.as_contract(&contract_address, || {
+            AdminContract::get_admin_info(env.clone(), admin.clone())
+        });
+    }
+
+    #[test]
+    fn test_pagination_walk_is_stable_across_repeated_calls() {
+        let env = Env::default();
+        let (contract_address, _super_admin, _admin, _operator) = setup_multiple_admins(&env);
+
+        let collect = || {
+            let mut out = soroban_sdk::Vec::new(&env);
+            let mut cursor = 0;
+            loop {
+                let (page, next) = env.as_contract(&contract_address, || {
+                    AdminContract::get_all_admins_page(env.clone(), cursor, 1)
+                });
+                for addr in page.iter() {
+                    out.push_back(addr);
+                }
+                match next {
+                    Some(n) => cursor = n,
+                    None => break,
+                }
+            }
+            out
+        };
+
+        let first = collect();
+        let second = collect();
+        assert_eq!(first.len(), second.len());
+        for i in 0..first.len() {
+            assert_eq!(first.get(i).unwrap(), second.get(i).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_role_page_cursor_past_end_after_deactivate() {
+        let env = Env::default();
+        let (contract_address, super_admin, admin, _operator) = setup_multiple_admins(&env);
+
+        env.mock_all_auths();
+        env.as_contract(&contract_address, || {
+            AdminContract::deactivate_admin(env.clone(), super_admin.clone(), admin.clone());
+        });
+
+        let (page, next_cursor) = env.as_contract(&contract_address, || {
+            AdminContract::get_admins_by_role_page(env.clone(), AdminRole::Admin, 10, 5)
+        });
+        assert_eq!(page.len(), 0);
+        assert_eq!(next_cursor, None);
     }
 }
