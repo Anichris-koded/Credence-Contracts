@@ -64,6 +64,9 @@ mod test_pausable;
 // mod test_flash_loan;
 
 #[cfg(test)]
+mod test_boundary_and_recovery;
+
+#[cfg(test)]
 mod test_withdrawal_guardrails;
 
 #[cfg(test)]
@@ -89,6 +92,3 @@ mod test_accounting_reconciliation;
 
 #[cfg(test)]
 mod test_withdrawal_recovery_guardrails;
-
-#[cfg(test)]
-mod test_treasury_boundary_recovery;
