@@ -1674,6 +1674,9 @@ mod test_emergency;
 mod test_role_events;
 
 #[cfg(test)]
+mod test_reactivate_admin_boundaries;
+
+#[cfg(test)]
 mod test_concurrency_race_safety;
 
 #[cfg(test)]
