@@ -84,6 +84,14 @@ pub mod test_helpers;
 #[cfg(test)]
 mod test_describe;
 
+/// Boundary tests for the idempotency key space and retention (#1332).
+#[cfg(test)]
+mod test_idempotency_boundary;
+
+/// Retry, replay and permission-recovery tests for idempotency (#1332).
+#[cfg(test)]
+mod test_idempotency_recovery;
+
 /// Tests for the liquidate entrypoint (issue #366).
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_liquidate;
@@ -2251,7 +2259,11 @@ impl CredenceBond {
         // auth: tree shape [Admin] -> [Bond::slash_bond]; usually direct admin call.
         // (`guards::require_admin` below performs the actual `admin.require_auth()`.)
 
-        validation::require_finite_bytes(&e, &idempotency_salt, validation::MAX_FINITE_BYTES_LENGTH);
+        validation::require_finite_bytes(
+            &e,
+            &idempotency_salt,
+            validation::MAX_FINITE_BYTES_LENGTH,
+        );
 
         // Check idempotency if a salt is provided (non-empty)
         // NOTE: idempotency module temporarily disabled during merge fix; re-enable when module is available
@@ -2267,6 +2279,21 @@ impl CredenceBond {
         // Admin check happens before the lock is acquired so an unauthorized
         // caller never leaves the reentrancy lock held.
         guards::require_admin(&e, &admin);
+
+        // An empty salt means the caller opted out of replay protection, which
+        // preserves the behaviour every caller predating this module relied on.
+        // The key is consumed only after authorization: recording it first would
+        // let an unauthorized caller burn a key the real admin still needs, and
+        // would leak which keys already exist. Doing it before `acquire_lock`
+        // also means a rejected replay never leaves the reentrancy lock held.
+        if !idempotency_salt.is_empty() {
+            idempotency::check_and_record(
+                &e,
+                &admin,
+                &Symbol::new(&e, "slash_bond"),
+                &idempotency_salt,
+            );
+        }
 
         if slash_amount <= 0 {
             panic_with_error!(e, ContractError::InvalidBondAmount);
@@ -2332,24 +2359,38 @@ impl CredenceBond {
     /// Reverts with [`ContractError::ContractPaused`] when the contract is paused.
     pub fn collect_fees(e: Env, admin: Address, idempotency_salt: Bytes) -> i128 {
         Self::require_not_paused(&e);
-        admin.require_auth();
 
-        validation::require_finite_bytes(&e, &idempotency_salt, validation::MAX_FINITE_BYTES_LENGTH);
+        validation::require_finite_bytes(
+            &e,
+            &idempotency_salt,
+            validation::MAX_FINITE_BYTES_LENGTH,
+        );
 
-        // Check idempotency if a salt is provided (non-empty)
-        // NOTE: idempotency module temporarily disabled during merge fix; re-enable when module is available
-        // if idempotency_salt.len() > 0 {
-        //     idempotency::check_and_record(
-        //         &e,
-        //         &admin,
-        //         &Symbol::new(&e, "collect_fees"),
-        //         &idempotency_salt,
-        //     );
-        // }
+        // Authorization runs before the lock is acquired, matching `slash_bond`,
+        // so an unauthorized caller never leaves the reentrancy lock held. It
+        // also replaces the bare `admin.require_auth()` that used to sit at the
+        // top of this function: `require_admin` performs the same
+        // `require_auth()`, so keeping both made a second `require_auth` for
+        // one invocation, which the host rejects with `Error(Auth, ExistingValue)`
+        // and which made any second `collect_fees` call untestable.
+        guards::require_admin(&e, &admin);
+
+        // An empty salt means the caller opted out of replay protection, which
+        // preserves the behaviour every caller predating this module relied on.
+        // The key is consumed only after authorization: recording it first would
+        // let an unauthorized caller burn a key the real admin still needs, and
+        // would leak which keys already exist. Doing it before `acquire_lock`
+        // also means a rejected replay never leaves the reentrancy lock held.
+        if !idempotency_salt.is_empty() {
+            idempotency::check_and_record(
+                &e,
+                &admin,
+                &Symbol::new(&e, "collect_fees"),
+                &idempotency_salt,
+            );
+        }
 
         Self::acquire_lock(&e);
-
-        guards::require_admin(&e, &admin);
 
         let fee_key = Symbol::new(&e, "fees");
         let fees: i128 = e.storage().instance().get(&fee_key).unwrap_or(0);
