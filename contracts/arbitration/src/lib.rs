@@ -879,6 +879,9 @@ impl interfaces::governable::Governable for ArbitrationContract {
 mod test;
 
 #[cfg(test)]
+mod test_dispute_guard;
+
+#[cfg(test)]
 mod test_pausable;
 
 #[cfg(test)]
