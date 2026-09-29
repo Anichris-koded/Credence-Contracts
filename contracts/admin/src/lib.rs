@@ -1662,6 +1662,9 @@ mod test_authorization;
 mod test_suspension;
 
 #[cfg(test)]
+mod test_deactivate_admin_boundaries;
+
+#[cfg(test)]
 mod test_auth_entrypoints;
 
 #[cfg(test)]
