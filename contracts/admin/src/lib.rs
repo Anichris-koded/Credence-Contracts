@@ -1419,6 +1419,25 @@ impl AdminContract {
     ///
     /// # Returns
     /// A tuple of (min_admins, max_admins)
+    ///
+    /// # Determinism and failure boundaries
+    ///
+    /// This is a pure read: it never mutates storage, never advances
+    /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
+    /// snapshot it always returns the same value, so it is safe to call from
+    /// other contracts and from off-chain simulations.
+    ///
+    /// # Boundary cases
+    ///
+    /// * Uninitialized contract — panics with
+    ///   [`ContractError::NotInitialized`] because neither `MinAdmins` nor
+    ///   `MaxAdmins` has been written.
+    /// * Partially initialized state (only one of the two keys present) —
+    ///   panics with [`ContractError::NotInitialized`] rather than returning a
+    ///   half-populated tuple, so callers never observe an inconsistent
+    ///   configuration.
+    /// * Initialized contract — returns the persisted `(min_admins, max_admins)`
+    ///   pair exactly as written by [`Self::initialize`].
     pub fn get_config(e: Env) -> (u32, u32) {
         bump_instance_ttl(&e);
         let min_admins: u32 = e
