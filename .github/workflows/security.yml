@@ -34,10 +34,11 @@ jobs:
             ${{ runner.os }}-cargo-audit-
 
       - name: Run cargo audit
-        uses: rustsec/audit-check@v2
+        uses: actions-rust-lang/audit@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ignore: "RUSTSEC-2025-0134,RUSTSEC-2026-0258"
+          # Ignored advisories are also listed in audit.toml; both are
+          # transitive via soroban-client and do not affect contract WASM.
+          ignore: RUSTSEC-2025-0134,RUSTSEC-2026-0258
 
   clippy-security:
     name: Static Analysis (Clippy Security Lints)
