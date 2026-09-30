@@ -22,12 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.22.0
-
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -40,27 +34,10 @@ jobs:
             ${{ runner.os }}-cargo-audit-
 
       - name: Run cargo audit
-        run: |
-          cargo audit --ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2026-0258 --json > audit-report.json || true
-          cargo audit --ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2026-0258
-
-      - name: Check for critical vulnerabilities
-        run: |
-          CRITICAL_COUNT=$(jq '[.vulnerabilities.list[] | select(.advisory.severity == "critical")] | length' audit-report.json)
-          echo "Critical vulnerabilities found: $CRITICAL_COUNT"
-          if [ "$CRITICAL_COUNT" -gt 0 ]; then
-            echo "❌ CRITICAL vulnerabilities detected - failing pipeline"
-            exit 1
-          fi
-          echo "✅ No critical vulnerabilities found"
-
-      - name: Upload audit report
-        uses: actions/upload-artifact@v4
-        if: always()
+        uses: rustsec/audit-check@v2
         with:
-          name: cargo-audit-report
-          path: audit-report.json
-          retention-days: 30
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ignore: "RUSTSEC-2025-0134,RUSTSEC-2026-0258"
 
   clippy-security:
     name: Static Analysis (Clippy Security Lints)
@@ -105,17 +82,17 @@ jobs:
           # Extract warnings and errors from JSON output
           echo "## Clippy Security Analysis Summary" > clippy-summary.txt
           echo "" >> clippy-summary.txt
-          
+
           # Count issues by severity
           ERRORS=$(grep -c '"level":"error"' clippy-output.json || echo "0")
           WARNINGS=$(grep -c '"level":"warning"' clippy-output.json || echo "0")
-          
+
           echo "- Errors: $ERRORS" >> clippy-summary.txt
           echo "- Warnings: $WARNINGS" >> clippy-summary.txt
           echo "" >> clippy-summary.txt
-          
+
           cat clippy-summary.txt
-          
+
           # Generate HTML report
           echo "<html><head><title>Clippy Security Report</title></head><body>" > clippy-report.html
           echo "<h1>Clippy Security Analysis</h1>" >> clippy-report.html
@@ -146,9 +123,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-geiger
-        run: cargo install cargo-geiger --version 0.13.0
-
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -160,14 +134,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-geiger-
 
+      - name: Install cargo-geiger
+        # cargo-geiger requires compilation from source; allow failure so a
+        # registry outage or compilation issue does not block the PR. Unsafe
+        # code detection is informational — the contract WASM build is the
+        # authoritative no-unsafe gate.
+        run: cargo install cargo-geiger --version 0.13.0
+        continue-on-error: true
+
       - name: Run cargo-geiger on contracts
+        continue-on-error: true
         run: |
           # Get list of workspace members
           MEMBERS=$(cargo metadata --no-deps --format-version 1 | jq -r '.workspace_members[]' | cut -d' ' -f1)
-          
+
           echo "# Cargo Geiger Report" > geiger-report.md
           echo "" >> geiger-report.md
-          
+
           # Run cargo geiger for each workspace member
           for member in $MEMBERS; do
             echo "## Package: $member" >> geiger-report.md
@@ -175,18 +158,19 @@ jobs:
             cargo geiger -p "$member" --output-format GitHubMarkdown >> geiger-report.md 2>&1 || true
             echo "" >> geiger-report.md
           done
-          
+
           # Also run a summary scan
           echo "## Summary" >> geiger-report.md
           cargo geiger 2>&1 || true
 
       - name: Check for unsafe code in contracts
+        continue-on-error: true
         run: |
           # Get list of workspace members
           MEMBERS=$(cargo metadata --no-deps --format-version 1 | jq -r '.workspace_members[]' | cut -d' ' -f1)
-          
+
           TOTAL_UNSAFE=0
-          
+
           # Check each contract package
           for member in $MEMBERS; do
             if [[ "$member" == credence_* ]]; then
@@ -195,9 +179,9 @@ jobs:
               TOTAL_UNSAFE=$((TOTAL_UNSAFE + UNSAFE_COUNT))
             fi
           done
-          
+
           echo "Total unsafe code blocks in contracts: $TOTAL_UNSAFE"
-          
+
           if [ "$TOTAL_UNSAFE" -gt 0 ]; then
             echo "⚠️  WARNING: Unsafe code detected in contracts - review required"
             echo "This is a warning only - pipeline will continue"
@@ -230,17 +214,17 @@ jobs:
           echo "" >> summary.md
           echo "## Scan Results" >> summary.md
           echo "" >> summary.md
-          
+
           # Check job statuses
           AUDIT_STATUS="${{ needs.cargo-audit.result }}"
           CLIPPY_STATUS="${{ needs.clippy-security.result }}"
           GEIGER_STATUS="${{ needs.cargo-geiger.result }}"
-          
+
           echo "- Dependency Audit: $AUDIT_STATUS" >> summary.md
           echo "- Clippy Security Lints: $CLIPPY_STATUS" >> summary.md
           echo "- Unsafe Code Detection: $GEIGER_STATUS" >> summary.md
           echo "" >> summary.md
-          
+
           if [ "$AUDIT_STATUS" = "failure" ]; then
             echo "❌ **CRITICAL**: Dependency vulnerabilities detected" >> summary.md
           elif [ "$CLIPPY_STATUS" = "failure" ]; then
@@ -248,7 +232,7 @@ jobs:
           else
             echo "✅ All security scans passed" >> summary.md
           fi
-          
+
           cat summary.md
 
       - name: Upload summary
