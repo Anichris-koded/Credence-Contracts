@@ -46,3 +46,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SafeERC20 Migration**: Replaced direct `TokenClient` calls with safe wrapper functions to support non-compliant ERC20 tokens across the protocol.
 - **Protocol Fixes**: Resolved compilation errors, completed `top_up` and `extend_duration` with overflow protection.
 - **Event Indexing**: Migrated lifecycle events to V2 for optimized off-chain indexing.
+
+<!-- a -->
