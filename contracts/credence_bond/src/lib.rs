@@ -94,8 +94,14 @@ mod test_zero_address;
 mod test_fork_divergent;
 
 /// Chaos testing suite for simulating host and token failures.
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod chaos_token;
+#[cfg(test)]
+mod chaos_token;
+
+/// Boundary and recovery coverage for `chaos_token.rs`: toggle independence,
+/// atomicity of a faulted call, retry-after-recovery, amount boundaries, and the
+/// one-shot hostile-token injection lifecycle (issue #1318).
+#[cfg(test)]
+mod test_chaos_token_boundaries;
 
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_chaos;
