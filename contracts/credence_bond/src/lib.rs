@@ -2,6 +2,13 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
+// The contract surface is `no_std`, but the `#[cfg(test)]` modules reach for
+// `std::panic` (catch_unwind / AssertUnwindSafe) in the boundary-recovery
+// suites. Declare `std` for test builds only so the release WASM target stays
+// `no_std`.
+#[cfg(test)]
+extern crate std;
+
 #[cfg(test)]
 mod batch;
 mod claims;
@@ -89,6 +96,7 @@ mod test_fork_divergent;
 /// Chaos testing suite for simulating host and token failures.
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod chaos_token;
+
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_chaos;
 // [pre-broken on main] #[cfg(test)]
@@ -3316,6 +3324,8 @@ mod tests {
             &attester,
             &subject,
             &String::from_str(&e, "ttl"),
+            &contract_id,
+            &0_u64,
             &0_u64,
         );
 
