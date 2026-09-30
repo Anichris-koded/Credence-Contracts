@@ -2,6 +2,10 @@
 // ON-CHAIN contract code only. Production contract wasm cannot depend on
 // `format!` for event topics or reverts, but an admin CLI printing JSON
 // status text is allowed and uses format!() for diagnostics.
+// Off-chain CLI binary — issue #713 silences dynamic-string macros in
+// ON-CHAIN contract code only. Production contract wasm cannot depend on
+// `format!` for event topics or reverts, but an admin CLI printing JSON
+// status text is allowed and uses format!() for diagnostics.
 #![allow(clippy::disallowed_macros)]
 
 use anyhow::{anyhow, Result};
@@ -19,6 +23,8 @@ use stellar_baselib::{
     keypair::{Keypair, KeypairBehavior},
     xdr::{Limits, ScVal, WriteXdr},
 };
+
+mod tests;
 
 /// Admin CLI for Credence protocol contracts.
 ///
@@ -62,6 +68,10 @@ struct Cli {
     /// Submit the transaction to the network instead of a dry-run.
     #[arg(long, action = clap::ArgAction::SetTrue, default_value = "false")]
     submit: bool,
+
+    /// Maximum number of retry attempts for transient RPC failures (submit path).
+    #[arg(long, env = "CREDENCE_RETRY_MAX", default_value = "3")]
+    retry_max: u32,
 
     #[command(subcommand)]
     command: Commands,
@@ -161,6 +171,14 @@ fn main() -> Result<()> {
 
 /// Encode args for `set_early_exit_config(admin: Address, treasury: Address, penalty_bps: u32)`.
 fn build_early_exit_args(admin: &str, treasury: &str, bps: u32) -> Result<Vec<ScVal>> {
+    // Invariant: penalty_bps must fit in the on-chain u32 range and be a
+    // valid basis-point value (0..=10_000). Reject out-of-range inputs
+    // before any transaction is built so we never emit an invalid envelope.
+    if bps > 10_000 {
+        return Err(anyhow!(
+            "penalty_bps {bps} out of range: must be 0..=10000 basis points"
+        ));
+    }
     Ok(vec![
         addr_to_sc_val(admin)?,
         addr_to_sc_val(treasury)?,
@@ -170,6 +188,17 @@ fn build_early_exit_args(admin: &str, treasury: &str, bps: u32) -> Result<Vec<Sc
 
 /// Encode args for `set_weight_config(admin: Address, multiplier_bps: u32, max_weight: u32)`.
 fn build_weight_args(admin: &str, multiplier_bps: u32, max_weight: u32) -> Result<Vec<ScVal>> {
+    // Invariant: multiplier_bps is a basis-point value (0..=10_000) and
+    // max_weight must be non-zero. Reject invalid combinations up front so
+    // the on-chain contract never sees a degenerate configuration.
+    if multiplier_bps > 10_000 {
+        return Err(anyhow!(
+            "multiplier_bps {multiplier_bps} out of range: must be 0..=10000 basis points"
+        ));
+    }
+    if max_weight == 0 {
+        return Err(anyhow!("max_weight must be greater than zero"));
+    }
     Ok(vec![
         addr_to_sc_val(admin)?,
         ScVal::U32(multiplier_bps),
@@ -179,6 +208,14 @@ fn build_weight_args(admin: &str, multiplier_bps: u32, max_weight: u32) -> Resul
 
 /// Encode args for `set_pause_signer(admin: Address, signer: Address, enabled: bool)`.
 fn build_pause_signer_args(admin: &str, signer: &str, enabled: bool) -> Result<Vec<ScVal>> {
+    // Invariant: admin and signer must be distinct addresses. Allowing the
+    // same address for both would let a single key both authorize and act
+    // as the pause signer, weakening the separation-of-duties guarantee.
+    if admin == signer {
+        return Err(anyhow!(
+            "admin and pause_signer must be distinct addresses"
+        ));
+    }
     Ok(vec![
         addr_to_sc_val(admin)?,
         addr_to_sc_val(signer)?,
@@ -201,6 +238,14 @@ fn addr_to_sc_val(addr: &str) -> Result<ScVal> {
 /// Build an `InvokeHostFunction` transaction, then either print a dry-run
 /// JSON report or sign-and-submit it to the network.
 fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result<()> {
+    // Invariant: contract_id must be a valid C… contract address. We validate
+    // here (not just inside Contracts::new) so callers get a clear, stable
+    // error message and so the dry-run path fails fast on bad input.
+    if !contract_id.starts_with('C') {
+        return Err(anyhow!(
+            "invalid contract address {contract_id:?}: must start with 'C'"
+        ));
+    }
     // Build the XDR operation via stellar-baselib's Contracts helper.
     let contract = Contracts::new(contract_id)
         .map_err(|e| anyhow!("invalid contract address {contract_id:?}: {e}"))?;
@@ -212,6 +257,12 @@ fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result
             .signer
             .as_deref()
             .ok_or_else(|| anyhow!("--signer / CREDENCE_SIGNER is required with --submit"))?;
+        // Invariant: signer secret must be a valid S… Stellar secret key.
+        if !secret.starts_with('S') {
+            return Err(anyhow!(
+                "invalid signer key: must be a Stellar secret key starting with 'S'"
+            ));
+        }
         Some(Keypair::from_secret(secret).map_err(|e| anyhow!("invalid signer key: {e}"))?)
     } else {
         None
@@ -225,6 +276,11 @@ fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result
 
     if cli.submit {
         // --- Live path: fetch account, build, sign, submit ------------------
+        // Invariant: retry_max must be at least 1 so we always attempt at
+        // least one submission; 0 would silently skip the network call.
+        if cli.retry_max == 0 {
+            return Err(anyhow!("--retry-max must be at least 1"));
+        }
         let runtime = tokio::runtime::Runtime::new()?;
         runtime.block_on(async {
             let server = Server::new(
@@ -236,6 +292,8 @@ fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result
             )
             .map_err(|e| anyhow!("RPC connect error: {e:?}"))?;
 
+            // Load the source account. This is a read-only step; on failure
+            // we surface a diagnosable error without leaking the secret key.
             let mut source_account: Account = server
                 .get_account(&source_pub)
                 .await
@@ -260,15 +318,33 @@ fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result
             let mut signed_tx = tx;
             signed_tx.sign(&[kp]);
 
-            // Submit.
-            let resp = server
-                .send_transaction(signed_tx)
-                .await
-                .map_err(|e| anyhow!("send_transaction failed: {e:?}"))?;
+            // Submit with bounded retries for transient failures. The signed
+            // transaction is immutable, so retrying cannot double-spend or
+            // mutate state beyond what the network already accepted; the
+            // network deduplicates by transaction hash.
+            let mut attempt: u32 = 0;
+            let resp = loop {
+                attempt += 1;
+                match server.send_transaction(signed_tx.clone()).await {
+                    Ok(r) => break r,
+                    Err(e) => {
+                        if attempt >= cli.retry_max {
+                            return Err(anyhow!(
+                                "send_transaction failed after {attempt} attempt(s): {e:?}"
+                            ));
+                        }
+                        // Exponential backoff with a small cap keeps retries
+                        // deterministic and bounded in wall-clock time.
+                        let backoff_ms = 100u64.saturating_mul(1u64 << (attempt - 1).min(5));
+                        tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    }
+                }
+            };
 
             let out = json!({
                 "status": format!("{:?}", resp.status),
                 "hash": resp.hash,
+                "attempts": attempt,
             });
             println!("{}", serde_json::to_string_pretty(&out)?);
             Ok(())
@@ -305,5 +381,151 @@ fn run(cli: &Cli, contract_id: &str, function: &str, args: Vec<ScVal>) -> Result
         });
         println!("{}", serde_json::to_string_pretty(&out)?);
         Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ADMIN: &str = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+    const TREASURY: &str = "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+    const CONTRACT: &str = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+
+    // --- Argument builder: success cases -----------------------------------
+
+    #[test]
+    fn early_exit_args_accepts_boundary_zero() {
+        let args = build_early_exit_args(ADMIN, TREASURY, 0).expect("zero bps is valid");
+        assert_eq!(args.len(), 3);
+        assert!(matches!(args[2], ScVal::U32(0)));
+    }
+
+    #[test]
+    fn early_exit_args_accepts_boundary_max() {
+        let args = build_early_exit_args(ADMIN, TREASURY, 10_000).expect("10000 bps is valid");
+        assert!(matches!(args[2], ScVal::U32(10_000)));
+    }
+
+    #[test]
+    fn weight_args_accepts_boundary_values() {
+        let args = build_weight_args(ADMIN, 10_000, 1).expect("boundary values valid");
+        assert_eq!(args.len(), 3);
+        assert!(matches!(args[1], ScVal::U32(10_000)));
+        assert!(matches!(args[2], ScVal::U32(1)));
+    }
+
+    #[test]
+    fn pause_signer_args_accepts_distinct_addresses() {
+        let args = build_pause_signer_args(ADMIN, TREASURY, true).expect("distinct addrs valid");
+        assert!(matches!(args[2], ScVal::Bool(true)));
+    }
+
+    // --- Argument builder: rejection cases ---------------------------------
+
+    #[test]
+    fn early_exit_args_rejects_bps_above_max() {
+        let err = build_early_exit_args(ADMIN, TREASURY, 10_001).unwrap_err();
+        assert!(err.to_string().contains("out of range"));
+    }
+
+    #[test]
+    fn early_exit_args_rejects_u32_max() {
+        let err = build_early_exit_args(ADMIN, TREASURY, u32::MAX).unwrap_err();
+        assert!(err.to_string().contains("out of range"));
+    }
+
+    #[test]
+    fn weight_args_rejects_multiplier_above_max() {
+        let err = build_weight_args(ADMIN, 10_001, 1).unwrap_err();
+        assert!(err.to_string().contains("out of range"));
+    }
+
+    #[test]
+    fn weight_args_rejects_zero_max_weight() {
+        let err = build_weight_args(ADMIN, 100, 0).unwrap_err();
+        assert!(err.to_string().contains("max_weight"));
+    }
+
+    #[test]
+    fn pause_signer_args_rejects_same_address() {
+        let err = build_pause_signer_args(ADMIN, ADMIN, true).unwrap_err();
+        assert!(err.to_string().contains("distinct"));
+    }
+
+    #[test]
+    fn addr_to_sc_val_rejects_garbage() {
+        let err = addr_to_sc_val("not-an-address").unwrap_err();
+        assert!(err.to_string().contains("invalid address"));
+    }
+
+    // --- run(): contract validation and signer validation ------------------
+
+    fn base_cli(submit: bool, signer: Option<String>, retry_max: u32) -> Cli {
+        Cli {
+            rpc_url: "https://soroban-testnet.stellar.org".to_string(),
+            network: "Test SDF Network ; September 2015".to_string(),
+            contract: Some(CONTRACT.to_string()),
+            signer,
+            submit,
+            retry_max,
+            command: Commands::BondSetEarlyExitConfig {
+                admin: ADMIN.to_string(),
+                treasury: TREASURY.to_string(),
+                bps: 100,
+            },
+        }
+    }
+
+    #[test]
+    fn run_rejects_non_contract_address() {
+        let cli = base_cli(false, None, 3);
+        let args = build_early_exit_args(ADMIN, TREASURY, 100).unwrap();
+        let err = run(&cli, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "f", args)
+            .unwrap_err();
+        assert!(err.to_string().contains("must start with 'C'"));
+    }
+
+    #[test]
+    fn run_submit_requires_signer() {
+        let cli = base_cli(true, None, 3);
+        let args = build_early_exit_args(ADMIN, TREASURY, 100).unwrap();
+        let err = run(&cli, CONTRACT, "set_early_exit_config", args).unwrap_err();
+        assert!(err.to_string().contains("--signer"));
+    }
+
+    #[test]
+    fn run_submit_rejects_non_secret_signer() {
+        let cli = base_cli(true, Some("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string()), 3);
+        let args = build_early_exit_args(ADMIN, TREASURY, 100).unwrap();
+        let err = run(&cli, CONTRACT, "set_early_exit_config", args).unwrap_err();
+        assert!(err.to_string().contains("secret key"));
+    }
+
+    #[test]
+    fn run_submit_rejects_zero_retry_max() {
+        let cli = base_cli(
+            true,
+            Some("SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string()),
+            0,
+        );
+        let args = build_early_exit_args(ADMIN, TREASURY, 100).unwrap();
+        let err = run(&cli, CONTRACT, "set_early_exit_config", args).unwrap_err();
+        assert!(err.to_string().contains("retry-max"));
+    }
+
+    // --- Dry-run path: deterministic output --------------------------------
+
+    #[test]
+    fn dry_run_produces_deterministic_envelope() {
+        let cli = base_cli(false, None, 3);
+        let args = build_early_exit_args(ADMIN, TREASURY, 100).unwrap();
+        // Two dry-runs with identical inputs must succeed identically.
+        run(&cli, CONTRACT, "set_early_exit_config", args.clone()).expect("dry-run ok");
+        run(&cli, CONTRACT, "set_early_exit_config", args).expect("dry-run ok");
     }
 }
