@@ -9,6 +9,8 @@
 pub mod access_control;
 #[cfg(test)]
 mod batch;
+#[cfg(test)]
+pub use batch::{BatchBondParams, BatchBondResult};
 mod claims;
 mod cooldown;
 mod early_exit_penalty;
@@ -1054,6 +1056,67 @@ impl CredenceBond {
         crate::same_ledger_liquidation_guard::record_collateral_increase(&e);
         invariants::assert_self_consistent(&e);
         bond
+    }
+
+    // ── Batch Bond Operations ─────────────────────────────────────────────
+    // These entrypoints delegate to the `batch` module which is compiled
+    // test-only (`#[cfg(test)] mod batch`).  They are excluded from the
+    // production WASM but are present in the test-mode client so
+    // `test_batch.rs` can exercise them through the normal contract path.
+
+    /// Create multiple bonds atomically in a single transaction.
+    ///
+    /// All bonds are validated first (fail-fast). If any bond fails validation,
+    /// the **entire** batch is rejected before any state is written.
+    ///
+    /// # Panics
+    /// * `ContractError::EmptyBatch` if `params_list` is empty.
+    /// * `ContractError::BatchTooLarge` if `params_list.len() > MAX_BATCH_BOND_SIZE`.
+    /// * `"invalid amount in batch"` if any bond has `amount <= 0`.
+    /// * `"duration overflow in batch"` if any bond's end timestamp would overflow.
+    /// * `"rolling bond requires notice period"` if any rolling bond has `notice_period_duration == 0`.
+    /// * `"bond already exists"` if any identity already has an active bond.
+    ///
+    /// # Events
+    /// Emits `batch_bonds_created` on success.
+    #[cfg(test)]
+    pub fn create_batch_bonds(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> batch::BatchBondResult {
+        Self::require_not_paused(&e);
+        batch::create_batch_bonds(&e, params_list)
+    }
+
+    /// Validate a batch of bond parameters without writing any state.
+    ///
+    /// Useful for pre-flight checks: identical validation rules as
+    /// [`create_batch_bonds`] with no side effects. Returns `true` when all
+    /// bonds are valid.
+    ///
+    /// # Panics
+    /// Same panic conditions as [`create_batch_bonds`], minus the duplicate-bond check.
+    #[cfg(test)]
+    pub fn validate_batch_bonds(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> bool {
+        batch::validate_batch(&e, params_list)
+    }
+
+    /// Return the total bonded amount across a batch (no state written).
+    ///
+    /// Useful for calculating aggregate collateral requirements before submitting
+    /// a batch. Panics with `"batch total overflow"` if the sum would overflow `i128`.
+    ///
+    /// # Returns
+    /// `0` for an empty batch; the arithmetic sum of all `amount` fields otherwise.
+    #[cfg(test)]
+    pub fn get_batch_total_amount(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> i128 {
+        batch::get_batch_total_amount(&e, &params_list)
     }
 
     /// Retrieve the current bond state.
@@ -3455,6 +3518,11 @@ mod test_bps_denominator;
 /// Tests for the batch_transfer entrypoint (issue #917).
 #[cfg(test)]
 mod test_batch_transfer;
+
+/// Tests for batch bond creation operations in batch.rs (issue #1317).
+/// Covers boundary, recovery, retry/stale, and authorization invariants.
+#[cfg(test)]
+mod test_batch;
 
 #[cfg(test)]
 mod test_create_bond;
