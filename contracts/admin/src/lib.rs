@@ -2169,5 +2169,6 @@ mod test_get_admin_info_boundaries;
 
 #[cfg(test)]
 mod test_atomic_rollback;
+
 #[cfg(test)]
-mod test_get_admin_count_failure_boundaries;
+mod test_initialize_failure_boundaries;
