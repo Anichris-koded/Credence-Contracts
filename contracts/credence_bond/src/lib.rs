@@ -2,11 +2,20 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
+// The contract surface is `no_std`, but the `#[cfg(test)]` modules reach for
+// `std::panic` (catch_unwind / AssertUnwindSafe) in the boundary-recovery
+// suites. Declare `std` for test builds only so the release WASM target stays
+// `no_std`.
+#[cfg(test)]
+extern crate std;
+
+
 // `access_control` was not in the module tree on `main`, so none of it was
 // compiled or reachable. Made `pub` rather than private so the integration test
 // target in `tests/access_control_boundaries.rs` can exercise the guards against
 // the production build.
 pub mod access_control;
+
 #[cfg(test)]
 mod batch;
 #[cfg(test)]
@@ -98,8 +107,15 @@ mod test_fork_divergent;
 mod security;
 
 /// Chaos testing suite for simulating host and token failures.
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod chaos_token;
+#[cfg(test)]
+mod chaos_token;
+
+/// Boundary and recovery coverage for `chaos_token.rs`: toggle independence,
+/// atomicity of a faulted call, retry-after-recovery, amount boundaries, and the
+/// one-shot hostile-token injection lifecycle (issue #1318).
+#[cfg(test)]
+mod test_chaos_token_boundaries;
+
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_chaos;
 // [pre-broken on main] #[cfg(test)]
@@ -692,7 +708,7 @@ impl CredenceBond {
         parameters::set_borrow_frozen(&e, &admin, frozen);
     }
 
-    // ==================== Protocol Parameters (Governance-Controlled) ====================
+    // ==================== Protocol Parameters (Governance-Controlled) =============
 
     pub fn get_protocol_fee_bps(e: Env) -> u32 {
         parameters::get_protocol_fee_bps(&e)
@@ -3395,6 +3411,8 @@ mod tests {
             &attester,
             &subject,
             &String::from_str(&e, "ttl"),
+            &contract_id,
+            &0_u64,
             &0_u64,
         );
 
