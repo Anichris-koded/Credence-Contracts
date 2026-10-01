@@ -68,6 +68,7 @@ mod tests {
     fn bond(bond_start: u64, bond_duration: u64, withdrawal_requested_at: u64) -> IdentityBond {
         IdentityBond {
             identity: soroban_sdk::Address::generate(&soroban_sdk::Env::default()),
+
             bonded_amount: 0,
             bond_start,
             bond_duration,
