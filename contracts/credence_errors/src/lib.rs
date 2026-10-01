@@ -21,8 +21,7 @@
 // use format!/write! for diagnostics).
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
-use soroban_sdk::contracterror;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env};
+use soroban_sdk::{contracterror, contracttype, panic_with_error, Address, Env};
 /// Project-wide version constant.
 pub const VERSION: &str = "0.1.0";
 
@@ -488,7 +487,13 @@ pub enum ContractError {
     /// Triggered by: token ingress symbol check
     /// Contracts: bond
     /// Wire-stable: do not renumber this error code.
-    InvalidCurrency = 239,
+    InvalidCurrency = 234,
+
+    /// User-supplied Bytes input exceeds the maximum accepted length.
+    /// Triggered by: `require_finite_bytes` boundary guard
+    /// Contracts: bond
+    /// Wire-stable: do not renumber this error code.
+    BytesTooLarge = 239,
 
     // --- Attestation (300-399) ---
     /// An attestation already exists from this attester for this bond.
@@ -724,20 +729,17 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     InvalidMaxPauseSigners = 119,
 
+    /// Cross-contract call arrived from an unexpected caller address.
+    /// Triggered by: `assert_cross_contract_caller` when the invoking
+    /// contract does not match the registered trusted contract address.
+    /// Contracts: bond, delegation
+    /// Wire-stable: do not renumber this error code.
+    CrossContractCallerMismatch = 123,
+
     /// Registering another pause signer would exceed the configured cap.
     /// Contracts: multisig
     /// Wire-stable: do not renumber this error code.
-    MaxPauseSignersExceeded = 123,
-
-    /// Cross-contract call originated from an unexpected caller.
-    /// Contracts: bond, delegation
-    /// Wire-stable: do not renumber this error code.
-    CrossContractCallerMismatch = 124,
-
-    /// User-supplied Bytes input exceeds the maximum accepted length.
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    BytesTooLarge = 234,
+    MaxPauseSignersExceeded = 124,
 
     // --- Treasury (600-699) ---
     /// Amount argument must be strictly positive (> 0).
@@ -964,7 +966,9 @@ impl ErrorExt for ContractError {
             | ContractError::BatchTooLarge
             | ContractError::EmptyBatch
             | ContractError::UnsupportedDecimals => ErrorCategory::Bond,
-            ContractError::InvalidStringifiedBytes | ContractError::SnapshotGenerationMismatch | ContractError::BatchTooLarge => ErrorCategory::Bond,
+            ContractError::InvalidStringifiedBytes
+            | ContractError::SnapshotGenerationMismatch
+            | ContractError::BytesTooLarge => ErrorCategory::Bond,
 
             ContractError::DuplicateAttestation
             | ContractError::AttestationNotFound
@@ -1014,6 +1018,18 @@ impl ErrorExt for ContractError {
             | ContractError::Underflow
             | ContractError::DivisionByZero
             | ContractError::InvalidPercentSplit => ErrorCategory::Arithmetic,
+            ContractError::NoPendingAdmin
+            | ContractError::InvalidAdminAddress
+            | ContractError::AdminUnchanged
+            | ContractError::TimelockNotReady
+            | ContractError::EmergencyDrainNotPermitted => ErrorCategory::Authorization,
+            ContractError::DomainMismatch
+            | ContractError::OwnerMismatch
+            | ContractError::TargetMismatch
+            | ContractError::ContractIdMismatch => ErrorCategory::Authorization,
+            ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => {
+                ErrorCategory::Delegation
+            }
         }
     }
 
@@ -1349,14 +1365,25 @@ impl ErrorExt for ContractError {
             | ContractError::RoleNotHeldAtLedger      // re-sign with a valid ledger timestamp
             | ContractError::EmergencyDrainNotPermitted
             | ContractError::RoleNotHeldAtLedger
-            | ContractError::ZeroBytes32
-            | ContractError::RoleRequired
-            | ContractError::LeaseScopeMismatch
-            | ContractError::LeaseExpired
-            | ContractError::LeaseSignerMismatch
-            | ContractError::TimestampInFuture
-            | ContractError::InvalidMaxPauseSigners
-            | ContractError::MaxPauseSignersExceeded => true, // re-sign with a valid ledger timestamp
+            | ContractError::RoleRequired           // re-present the required role
+            | ContractError::ZeroBytes32            // supply a non-zero Bytes32
+            | ContractError::TimestampInFuture      // resubmit with a valid (past) timestamp
+            | ContractError::LeaseScopeMismatch     // correct operation scope
+            | ContractError::LeaseExpired           // renew lease first
+            | ContractError::LeaseSignerMismatch    // present correct signer
+            => true, // re-sign with a valid ledger timestamp
+
+            // Admin can supply a valid value / remove a signer or raise the
+            // cap, then retry.
+            ContractError::InvalidMaxPauseSigners => true,
+            ContractError::MaxPauseSignersExceeded => true,
+
+            // Stale epoch proposals cannot be fixed by retry — re-propose in the
+            // current bucket.
+            ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => false,
+
+            // Cross-contract caller mismatch is a security halt; do not retry.
+            ContractError::CrossContractCallerMismatch => false,
 
             // --- Bond (200-299): most errors are caller-fixable. ---
             ContractError::BondNotFound               // create_bond first
@@ -1366,10 +1393,10 @@ impl ErrorExt for ContractError {
             | ContractError::LockupNotExpired         // wait for lock-up expiry
             | ContractError::NotRollingBond
             | ContractError::WithdrawalAlreadyRequested // wait for the existing request
-            | ContractError::CooldownRequestAlreadyPending
-            | ContractError::CooldownRequestNotFound
-            | ContractError::CooldownPeriodNotElapsed
-            | ContractError::InvalidNonce               // bump nonce
+            | ContractError::CooldownRequestAlreadyPending // wait for the existing cooldown request
+            | ContractError::CooldownRequestNotFound    // initiate cooldown first
+            | ContractError::CooldownPeriodNotElapsed   // wait for cooldown to expire
+            |            ContractError::InvalidNonce               // bump nonce
             | ContractError::SignatureExpired           // re-sign with later deadline
             | ContractError::TreasuryNotConfigured     // configure treasury, then retry
             | ContractError::CursorOutOfRange          // supply a valid cursor
@@ -1386,9 +1413,9 @@ impl ErrorExt for ContractError {
             | ContractError::BondAlreadyExists
             | ContractError::UnauthorizedToken
             | ContractError::InvalidCurrency
-            | ContractError::InvalidStringifiedBytes
+            | ContractError::InvalidStringifiedBytes    // resubmit with well-formed bytes
             | ContractError::SnapshotGenerationMismatch // retry with correct generation
-            | ContractError::DuplicateIdempotencyKey    // use a different idempotency key
+            | ContractError::DuplicateIdempotencyKey     // use a unique key
             | ContractError::BatchTooLarge         // reduce batch size
             | ContractError::EmptyBatch            // supply at least one item
             | ContractError::SnapshotGenerationMismatch
@@ -1470,6 +1497,12 @@ impl ErrorExt for ContractError {
 
 
             ContractError::InvalidPercentSplit => true, // caller can provide valid splits
+
+            // Flash-loan failures are FATAL: the callback violated the repayment
+            // invariant, or the callback address is invalid. Retrying without
+            // a code fix will always fail.
+            ContractError::InvalidFlashLoanCallback => false,
+            ContractError::FlashLoanRepaymentFailed => false,
 
             // --- Arithmetic (700-799): code-level impossibility. ---
             ContractError::Overflow
