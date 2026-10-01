@@ -1984,6 +1984,9 @@ mod test_reactivate_admin_boundaries;
 mod test_concurrency_race_safety;
 
 #[cfg(test)]
+mod test_get_admin_info_boundaries;
+
+#[cfg(test)]
 mod test_atomic_rollback;
 
 #[cfg(test)]
