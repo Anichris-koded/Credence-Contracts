@@ -149,8 +149,15 @@ mod test_claim_expiry_sweep;
 #[cfg(test)]
 mod test_leverage;
 
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_migration_guard;
+// Re-enabled: the guard suite was disabled on main, so `migration.rs`
+// had no compiled coverage at all (issue #1340).
+#[cfg(test)]
+mod test_migration_guard;
+
+/// Boundary, idempotency, and recovery coverage for `migration.rs`'s
+/// `migrate_v1_to_v2` lazy migration (issue #1340).
+#[cfg(test)]
+mod test_migration;
 
 /// Tests for the same-ledger sequencing guard (#996 — anti-sandwich).
 // [pre-broken on main] #[cfg(test)]
