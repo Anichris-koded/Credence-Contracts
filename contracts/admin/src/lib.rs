@@ -218,135 +218,6 @@ impl AdminContract {
         String::from_str(&e, credence_errors::VERSION)
     }
 
-/// Return whether `address` is currently an active admin.
-    ///
-    /// # Determinism and failure boundaries
-    ///
-    /// The result is a pure function of the committed ledger state:
-    ///
-    /// * **Uninitialized contract** — returns `false` rather than panicking, so
-    ///   a caller probing a not-yet-deployed configuration gets a stable
-    ///   negative answer instead of an opaque trap.
-    /// * **Unknown address** — returns `false`; no entry is ever created.
-    /// * **Inactive or suspended admin** — returns `false` while
-    ///   `e.ledger().timestamp() < suspended_until`, and `true` again once the
-    ///   suspension expires, with no second transaction required.
-    /// * **Role mismatch** — returns `false`; roles are compared by exact
-    ///   equality, not by hierarchy, so an `Operator` does not satisfy a
-    ///   `SuperAdmin` probe.
-    /// * **Invalid sentinel address** — returns `false`; the zero address can
-    ///   never hold a role.
-    ///
-    /// Because the function only reads, concurrent invocations cannot observe
-    /// a torn state: Soroban executes each invocation against a consistent
-    /// ledger snapshot and serialises conflicting writes, so a caller that
-    /// reads `true` here and then submits a mutation will either succeed or be
-    /// rejected atomically (and can retry against a fresh snapshot).
-    ///
-    /// # Arguments
-    /// * `address` - The address whose role membership is being probed.
-    /// * `role` - The exact role to test for.
-    ///
-    /// # Returns
-    /// `true` iff `address` is an active, non-suspended admin holding exactly
-    /// `role` in the current ledger snapshot.
-    pub fn check_role_at_ledger(e: Env, address: Address, role: AdminRole) -> bool {
-        bump_instance_ttl(&e);
-
-        // An uninitialized contract has no governance state; report a stable
-        // negative instead of trapping so probes are deterministic.
-        if !e.storage().instance().has(&DataKey::Initialized) {
-            return false;
-        }
-
-        // The zero/invalid sentinel can never hold a governance role.
-        if address.to_string() == String::from_str(&e, INVALID_ADDRESS_SENTINEL) {
-            return false;
-        }
-
-        let info: AdminInfo = match e
-            .storage()
-            .instance()
-            .get(&DataKey::AdminInfo(address.clone()))
-        {
-            Some(info) => info,
-            None => return false,
-        };
-
-        // Suspension is time-bounded and expires automatically.
-        if info.suspended_until != 0 && e.ledger().timestamp() < info.suspended_until {
-            return false;
-        }
-
-    /// Deterministically check whether `address` holds `role` as of the current
-    /// ledger snapshot.
-    ///
-    /// This is the read-only authorization probe used by callers that need to
-    /// decide whether to attempt a privileged mutation. It is intentionally
-    /// side-effect free: it never mutates storage, never advances
-    /// [`DataKey::ConfigEpoch`], and never emits events, so it is safe to call
-    /// from a simulation or a retry loop.
-    ///
-    /// # Determinism and failure boundaries
-    ///
-    /// The result is a pure function of the committed ledger state:
-    ///
-    /// * **Uninitialized contract** — returns `false` rather than panicking, so
-    ///   a caller probing a not-yet-deployed configuration gets a stable
-    ///   negative answer instead of an opaque trap.
-    /// * **Unknown address** — returns `false`; no entry is ever created.
-    /// * **Inactive or suspended admin** — returns `false` while
-    ///   `e.ledger().timestamp() < suspended_until`, and `true` again once the
-    ///   suspension expires, with no second transaction required.
-    /// * **Role mismatch** — returns `false`; roles are compared by exact
-    ///   equality, not by hierarchy, so an `Operator` does not satisfy a
-    ///   `SuperAdmin` probe.
-    /// * **Invalid sentinel address** — returns `false`; the zero address can
-    ///   never hold a role.
-    ///
-    /// Because the function only reads, concurrent invocations cannot observe
-    /// a torn state: Soroban executes each invocation against a consistent
-    /// ledger snapshot and serialises conflicting writes, so a caller that
-    /// reads `true` here and then submits a mutation will either succeed or be
-    /// rejected atomically (and can retry against a fresh snapshot).
-    ///
-    /// # Arguments
-    /// * `address` - The address whose role membership is being probed.
-    /// * `role` - The exact role to test for.
-    ///
-    /// # Returns
-    /// `true` iff `address` is an active, non-suspended admin holding exactly
-    /// `role` in the current ledger snapshot.
-    pub fn check_role_at_ledger(e: Env, address: Address, role: AdminRole) -> bool {
-        bump_instance_ttl(&e);
-
-        // An uninitialized contract has no governance state; report a stable
-        // negative instead of trapping so probes are deterministic.
-        if !e.storage().instance().has(&DataKey::Initialized) {
-            return false;
-        }
-
-        // The zero/invalid sentinel can never hold a governance role.
-        if address.to_string() == String::from_str(&e, INVALID_ADDRESS_SENTINEL) {
-            return false;
-        }
-
-        let info: AdminInfo = match e
-            .storage()
-            .instance()
-            .get(&DataKey::AdminInfo(address.clone()))
-        {
-            Some(info) => info,
-            None => return false,
-        };
-
-        // Suspension is time-bounded and expires automatically.
-        if info.suspended_until != 0 && e.ledger().timestamp() < info.suspended_until {
-            return false;
-        }
-
-        info.active && info.role == role
-    }
     /// Initialize the admin contract with a super admin.
     ///
     /// # Arguments
@@ -1331,6 +1202,40 @@ impl AdminContract {
     ///
     /// # Returns
     /// `Role::Admin` if the address is an active admin, `Role::User` otherwise.
+    ///
+    /// # Determinism and failure boundaries
+    ///
+    /// This is a pure read: it never mutates storage, never advances
+    /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
+    /// snapshot it always returns the same value, so it is safe to call from
+    /// other contracts and from off-chain simulations.
+    ///
+    /// An address is considered an admin if and only if **all** of the
+    /// following hold:
+    ///
+    /// 1. An [`AdminInfo`] record exists for the address.
+    /// 2. The record's `active` flag is `true`.
+    /// 3. The record is not currently suspended, that is
+    /// `suspended_until == 0 || e.ledger().timestamp() >= suspended_until`.
+    ///
+    /// Suspension expires automatically once the ledger timestamp reaches
+    /// `suspended_until`, so no second transaction is required to restore
+    /// admin status.
+    ///
+    /// # Boundary cases
+    ///
+    /// * Uninitialized contract — returns `Role::User` (no panic, no partial read).
+    /// * Unknown address — returns `Role::User`.
+    /// * Deactivated admin — returns `Role::User`.
+    /// * Suspended admin — returns `Role::User` until the suspension expires.
+    /// * Suspension boundary — at exactly `suspended_until` the admin is
+    ///   active again (`>=` comparison).
+    ///
+    /// # Security
+    ///
+    /// This function performs no authorization check and exposes no sensitive
+    /// data: it only reveals whether a public address currently holds admin
+    /// privileges, which is already observable through privileged entrypoints.
     pub fn is_admin(e: Env, address: Address) -> Role {
         match e
             .storage()
