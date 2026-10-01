@@ -58,23 +58,29 @@ pub fn apply_renewal(bond: &mut IdentityBond, now: u64) -> Result<(), RollingBon
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
     use crate::IdentityBond;
     use soroban_sdk::testutils::Address as _;
 
+    /// The `identity` field is inert for the pure `rolling_bond` helpers,
+    /// which only touch start/duration/withdrawal, so the fixture fills it
+    /// from a throwaway env rather than threading one through every case.
+    fn placeholder_identity() -> soroban_sdk::Address {
+        soroban_sdk::Address::generate(&soroban_sdk::Env::default())
+    }
+
     fn bond(bond_start: u64, bond_duration: u64, withdrawal_requested_at: u64) -> IdentityBond {
-        // `IdentityBond` has no `Default` impl, so every field is listed
-        // explicitly. Only `bond_start`, `bond_duration` and
-        // `withdrawal_requested_at` are exercised by these tests; the rest
-        // are inert placeholders.
+        // The identity is not read by any assertion in this module; a fixed
+        // placeholder keeps the fixture independent of the test env.
         IdentityBond {
-            identity: soroban_sdk::Address::generate(&soroban_sdk::Env::default()),
+            identity: placeholder_identity(),
             bonded_amount: 0,
             bond_start,
             bond_duration,
             slashed_amount: 0,
             active: true,
-            is_rolling: false,
+            is_rolling: true,
             withdrawal_requested_at,
             notice_period_duration: 0,
         }
