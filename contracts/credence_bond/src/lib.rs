@@ -3474,6 +3474,14 @@ mod test_lifecycle_invariants;
 #[cfg(test)]
 mod test_pausable;
 
+/// Boundary-case coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_boundary;
+
+/// Adversarial/recovery coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_recovery;
+
 /// Boundary/recovery unit coverage for the `emergency` module (issue #1322).
 #[cfg(test)]
 mod test_emergency_boundaries;
