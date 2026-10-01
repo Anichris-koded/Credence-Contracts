@@ -12,118 +12,7 @@ mod tests {
     /// Keeping this in sync with `variant_table.rs` is enforced by the
     /// `test_all_variants_count` test below.
     fn all_variants() -> Vec<ContractError> {
-        std::vec![
-            ContractError::NotInitialized,
-            ContractError::AlreadyInitialized,
-            ContractError::NotAdmin,
-            ContractError::NotBondOwner,
-            ContractError::UnauthorizedAttester,
-            ContractError::NotOriginalAttester,
-            ContractError::NotSigner,
-            ContractError::UnauthorizedDepositor,
-            ContractError::ContractPaused,
-            ContractError::BorrowFrozen,
-            ContractError::InvalidPauseAction,
-            ContractError::InsufficientSignatures,
-            ContractError::AdminSuspended,
-            ContractError::NoPendingAdmin,
-            ContractError::InvalidAdminAddress,
-            ContractError::AdminUnchanged,
-            ContractError::TimelockNotReady,
-            ContractError::EmergencyDrainNotPermitted,
-            ContractError::RoleNotHeldAtLedger,
-            ContractError::ZeroBytes32,
-            ContractError::CrossContractCallerMismatch,
-            ContractError::TimestampInFuture,
-            ContractError::LeaseScopeMismatch,
-            ContractError::LeaseExpired,
-            ContractError::CorridorNotRegistered,
-            ContractError::InvalidPercentSplit,
-            ContractError::InvalidStringifiedBytes,
-            ContractError::SnapshotGenerationMismatch,
-            ContractError::StaleAdminEpoch,
-            ContractError::StaleSignerEpoch,
-            ContractError::InvalidCurrency,
-            ContractError::BondNotFound,
-            ContractError::BondNotActive,
-            ContractError::InsufficientBalance,
-            ContractError::SlashExceedsBond,
-            ContractError::LockupNotExpired,
-            ContractError::NotRollingBond,
-            ContractError::WithdrawalAlreadyRequested,
-            ContractError::ReentrancyDetected,
-            ContractError::InvalidNonce,
-            ContractError::NegativeStake,
-            ContractError::EarlyExitConfigNotSet,
-            ContractError::InvalidPenaltyBps,
-            ContractError::LeverageExceeded,
-            ContractError::UnsupportedToken,
-            ContractError::UnsupportedDecimals,
-            ContractError::InvalidBondAmount,
-            ContractError::AmountExplicitlyZero,
-            ContractError::InvalidBondDuration,
-            ContractError::InvalidNoticePeriod,
-            ContractError::BondAlreadyExists,
-            ContractError::UnauthorizedToken,
-            ContractError::DuplicateIdempotencyKey,
-            ContractError::InvalidStringifiedBytes,
-            ContractError::InvariantViolation,
-            ContractError::StorageCapReached,
-            ContractError::TreasuryNotConfigured,
-            ContractError::CursorOutOfRange,
-            ContractError::DomainMismatch,
-            ContractError::OwnerMismatch,
-            ContractError::TargetMismatch,
-            ContractError::ContractIdMismatch,
-            ContractError::SignatureExpired,
-            ContractError::DuplicateAttestation,
-            ContractError::AttestationNotFound,
-            ContractError::AttestationAlreadyRevoked,
-            ContractError::InvalidAttestationWeight,
-            ContractError::AttestationWeightExceedsMax,
-            ContractError::IdentityAlreadyRegistered,
-            ContractError::BondContractAlreadyRegistered,
-            ContractError::IdentityNotRegistered,
-            ContractError::BondContractNotRegistered,
-            ContractError::AlreadyDeactivated,
-            ContractError::AlreadyActive,
-            ContractError::InvalidContractAddress,
-            ContractError::ContractCodeVerificationFailed,
-            ContractError::UnsupportedInterface,
-            ContractError::ExpiryInPast,
-            ContractError::DelegationNotFound,
-            ContractError::AlreadyRevoked,
-            ContractError::DelegationExpiryTooLong,
-            ContractError::UnknownScheme,
-            ContractError::VerifierAlreadyRegistered,
-            ContractError::VerifierNotRegistered,
-            ContractError::VerificationFailed,
-            ContractError::RevocationGraceExpired,
-            ContractError::DelegationNotExpired,
-            ContractError::DelegationInactive,
-            ContractError::PromiseNotKept,
-            ContractError::AmountMustBePositive,
-            ContractError::ThresholdExceedsSigners,
-            ContractError::InsufficientTreasuryBalance,
-            ContractError::ProposalNotFound,
-            ContractError::ProposalAlreadyExecuted,
-            ContractError::InsufficientApprovals,
-            ContractError::InvalidFlashLoanCallback,
-            ContractError::FlashLoanRepaymentFailed,
-            ContractError::ProposalExpired,
-            ContractError::SlippageExceeded,
-            ContractError::TreasuryBeneficiaryMismatch,
-            ContractError::Overflow,
-            ContractError::Underflow,
-            ContractError::DivisionByZero,
-            ContractError::BatchTooLarge,
-            ContractError::EmptyBatch,
-            ContractError::InvalidCurrency,
-            ContractError::PayloadTooOld,
-            ContractError::TimestampInFuture,
-            ContractError::StaleAdminEpoch,
-            ContractError::StaleSignerEpoch,
-        ]
+        ALL_VARIANTS.iter().map(|(_, v)| *v).collect()
     }
 
     // ---------------------------------------------------------------------------
@@ -132,22 +21,22 @@ mod tests {
 
     #[test]
     fn test_require_contract_uninitialized_passes_when_false() {
+        fn call(e: &soroban_sdk::Env) -> Result<(), ContractError> {
+            crate::require_contract_uninitialized(e, false);
+            Ok(())
+        }
         let e = soroban_sdk::Env::default();
         // Does not panic.
         crate::require_contract_uninitialized(&e, false);
     }
 
     #[test]
-    fn test_require_contract_uninitialized_returns_error_when_true() {
-        // `AlreadyInitialized` is wire code 2, and the helper panics via `Env::panic_with_error`.
+    #[should_panic(expected = "Error(Contract, #2)")]
+    fn test_require_contract_uninitialized_panics_when_true() {
+        // The helper panics with `AlreadyInitialized` (code 2) rather than
+        // returning `Err`, so assert on the host error instead of a Result.
         let e = soroban_sdk::Env::default();
-        assert_eq!(
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                crate::require_contract_uninitialized(&e, true);
-            }))
-            .is_err(),
-            true
-        );
+        crate::require_contract_uninitialized(&e, true);
     }
 
     // ---------------------------------------------------------------------------
@@ -629,12 +518,14 @@ mod tests {
 
     #[test]
     fn test_all_variants_count() {
-        // This count must equal the number of entries in variant_table.rs.
-        // When adding a variant: add a row to variant_table.rs and bump this number.
+        // `all_variants()` is derived from the shared `variant_table.rs`, so
+        // this only guards that the derivation and the table agree. The real
+        // generation counter lives in `variant_table.rs`; see
+        // `tests/variant_coverage_sync.rs`.
         assert_eq!(
             all_variants().len(),
-            116,
-            "Update variant_table.rs and this count when adding/removing errors"
+            ALL_VARIANTS.len(),
+            "Add one row to `variant_table.rs` per new `ContractError` variant"
         );
     }
 
@@ -1525,6 +1416,8 @@ mod tests {
             ContractError::RoleRequired => true,
             ContractError::StaleAdminEpoch => false,
             ContractError::StaleSignerEpoch => false,
+            ContractError::LeaseSignerMismatch => true, // re-sign with the lease's signer
+            ContractError::DeadlineExpired => true,     // re-sign with a later deadline
 
             // Bond: state/caller fixes; fatal cases are security/drift/capacity.
             ContractError::BondNotFound => true,
@@ -1558,6 +1451,10 @@ mod tests {
             ContractError::DomainMismatch => false,       // payload binding
             ContractError::BatchTooLarge => true,         // reduce batch size
             ContractError::EmptyBatch => true,            // supply at least one item
+            ContractError::BytesTooLarge => true,         // resubmit with shorter input
+            ContractError::CooldownRequestAlreadyPending => true, // wait for the pending request
+            ContractError::CooldownRequestNotFound => true, // admin configures cooldown first
+            ContractError::CooldownPeriodNotElapsed => true, // wait out the cooldown period
             ContractError::InvalidCurrency => true,       // supply a valid currency
             ContractError::OwnerMismatch => false,
             ContractError::TargetMismatch => false,

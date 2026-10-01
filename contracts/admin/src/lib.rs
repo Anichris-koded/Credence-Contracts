@@ -2135,6 +2135,9 @@ mod test_zero_address_simple;
 mod test_immutable_config_simple;
 
 #[cfg(test)]
+mod test_immutable_config;
+
+#[cfg(test)]
 mod test_authorization;
 
 #[cfg(test)]
