@@ -151,7 +151,10 @@ pub fn require_dispute_resolved(status: &DisputeStatus) -> Result<(), Arbitratio
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
+    use std::vec;
+    use std::vec::Vec;
 
     // ============================================================================
     // Tests for: require_transition
