@@ -1417,6 +1417,19 @@ impl AdminContract {
 
     /// Get contract configuration.
     ///
+    /// # Determinism and failure boundaries
+    ///
+    /// This is a pure read: it never mutates storage, never advances
+    /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
+    /// snapshot it always returns the same `(min_admins, max_admins)` pair.
+    ///
+    /// Failure boundary: on an uninitialized contract (or one whose config
+    /// keys were never written) this panics with
+    /// [`ContractError::NotInitialized`] rather than returning a defaulted
+    /// `(0, 0)` tuple. Returning a fabricated default would let callers
+    /// silently proceed against a contract that has no enforced admin
+    /// bounds, so the failure is surfaced explicitly and atomically.
+    ///
     /// # Returns
     /// A tuple of (min_admins, max_admins)
     pub fn get_config(e: Env) -> (u32, u32) {
