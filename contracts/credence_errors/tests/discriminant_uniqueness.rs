@@ -23,11 +23,18 @@
 extern crate std;
 use credence_errors::ContractError;
 
+// Single source of truth: variant_table.rs lists every variant once.
 include!("../variant_table.rs");
+
+/// N :: Number of entries asserted in `ALL_VARIANTS`. Bumped manually
+/// when a new variant is added. The mismatch-asserting test below fails the
+/// build if a contributor adds a row to `variant_table.rs` but forgets to
+/// bump this counter — and vice-versa.
+const ALL_VARIANTS_COUNT: usize = 116;
 
 #[test]
 fn every_contract_error_variant_has_a_unique_u32_discriminant() {
-    // O(n^2) check via `Vec::contains` - n is ~117 so this runs in single-digit us.
+    // O(n²) check via `Vec::contains` — n ≈ 120 so this runs in single-digit µs.
     // We do not use a `BTreeSet` to avoid pulling in `std::collections` machinery
     // that must remain invisible to the rest of the crate.
     let mut seen: std::vec::Vec<u32> = std::vec::Vec::with_capacity(ALL_VARIANTS.len());
@@ -99,6 +106,18 @@ fn discriminant_codes_fit_their_documented_category_range() {
              lists and update both when bumping a variant.",
         );
     }
+}
+
+#[test]
+fn all_variants_count_is_consistent_with_enum_definition() {
+    // Forcing function: `variant_table.rs` is the single generation counter.
+    // Bumping only one parallel count while the enum grows causes silent drift.
+    assert_eq!(
+        ALL_VARIANTS.len(),
+        ALL_VARIANTS_COUNT,
+        "Add one row to `variant_table.rs` per new `ContractError` variant, \
+         then bump ALL_VARIANTS_COUNT in `tests/discriminant_uniqueness.rs`.",
+    );
 }
 
 #[test]

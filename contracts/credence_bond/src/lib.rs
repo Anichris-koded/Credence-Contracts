@@ -2,13 +2,20 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
-// The contract is `no_std` so the release WASM stays small, but several
-// `#[cfg(test)]` modules use `std::panic::catch_unwind` to assert that a
-// Soroban panic unwinds rather than aborting. Link `std` for test builds only.
+// The contract surface is `no_std`, but the `#[cfg(test)]` modules reach for
+// `std::panic` (catch_unwind / AssertUnwindSafe) in the boundary-recovery
+// suites. Declare `std` for test builds only so the release WASM target stays
+// `no_std`.
 #[cfg(test)]
 extern crate std;
 
-#[cfg(test)]
+
+// `access_control` was not in the module tree on `main`, so none of it was
+// compiled or reachable. Made `pub` rather than private so the integration test
+// target in `tests/access_control_boundaries.rs` can exercise the guards against
+// the production build.
+pub mod access_control;
+
 mod batch;
 #[cfg(test)]
 pub use batch::{BatchBondParams, BatchBondResult};
@@ -62,9 +69,20 @@ pub mod types;
 // [pre-broken on main] the `fork_divergent` module it exercises is disabled in lib.rs.
 // mod test_fork_divergent;
 
+/// Boundary and recovery coverage for the security module.
+#[cfg(test)]
+mod security;
+
 /// Chaos testing suite for simulating host and token failures.
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod chaos_token;
+#[cfg(test)]
+mod chaos_token;
+
+/// Boundary and recovery coverage for `chaos_token.rs`: toggle independence,
+/// atomicity of a faulted call, retry-after-recovery, amount boundaries, and the
+/// one-shot hostile-token injection lifecycle (issue #1318).
+#[cfg(test)]
+mod test_chaos_token_boundaries;
+
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_chaos;
 // [pre-broken on main] #[cfg(test)]
@@ -159,10 +177,18 @@ mod test_safe_token_recovery;
 
 /// Boundary and recovery tests for `leverage.rs`: unit, integration, and
 /// regression coverage for `validate_leverage` (issue #1336).
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_leverage;
+#[cfg(test)]
+mod test_leverage;
 
-// [pre-broken on main] mod test_migration_guard;
+// Re-enabled: the guard suite was disabled on main, so `migration.rs`
+// had no compiled coverage at all (issue #1340).
+#[cfg(test)]
+mod test_migration_guard;
+
+/// Boundary, idempotency, and recovery coverage for `migration.rs`'s
+/// `migrate_v1_to_v2` lazy migration (issue #1340).
+#[cfg(test)]
+mod test_migration;
 
 /// Tests for the same-ledger sequencing guard (#996 — anti-sandwich).
 // [pre-broken on main] mod test_same_ledger_liquidation_guard;
@@ -3441,7 +3467,7 @@ mod tests {
             &subject,
             &String::from_str(&e, "ttl"),
             &contract_id,
-            &e.ledger().timestamp().saturating_add(3_600),
+            &0_u64,
             &0_u64,
         );
 
@@ -3532,6 +3558,12 @@ mod test_early_exit_treasury_requirement {
 
 /// Access-control test helpers used by integration test modules.
 /// Excluded from release WASM.
+// The in-crate `test_access_control` module is still disabled: it is part of
+// the 266-error `--lib` test target left broken on `main`, so it cannot be
+// compiled or run even with its two stale call sites fixed here. Its coverage
+// now lives in `tests/access_control_boundaries.rs` (issue #1316), which links
+// the production build and therefore actually executes.
+// [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] pub mod test_access_control;
 /// Regression guard: canonical lifecycle scenarios with pinned expected states,
 /// plus a cross-contract divergence-detection smoke test.
@@ -3551,8 +3583,13 @@ mod test_early_exit_treasury_requirement {
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_batch_transfer;
 
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_create_bond;
+/// Tests for batch bond creation operations in batch.rs (issue #1317).
+/// Covers boundary, recovery, retry/stale, and authorization invariants.
+#[cfg(test)]
+mod test_batch;
+
+#[cfg(test)]
+mod test_create_bond;
 
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_increase_bond;
@@ -3572,6 +3609,14 @@ mod test_early_exit_treasury_requirement {
 /// Emergency pause gating tests (issue #1042).
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_pausable;
+
+/// Boundary-case coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_boundary;
+
+/// Adversarial/recovery coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_recovery;
 
 /// Boundary/recovery unit coverage for the `emergency` module (issue #1322).
 #[cfg(test)]

@@ -13,107 +13,75 @@ pub const ALL_VARIANTS: &[(&str, ContractError)] = &[
     ("NotInitialized", ContractError::NotInitialized),           // 1
     ("AlreadyInitialized", ContractError::AlreadyInitialized),   // 2
     // --- Authorization (100-199) ---
-    ("NotAdmin", ContractError::NotAdmin),                       // 100
-    ("NotBondOwner", ContractError::NotBondOwner),               // 101
-    ("UnauthorizedAttester", ContractError::UnauthorizedAttester),     // 102
-    ("NotOriginalAttester", ContractError::NotOriginalAttester),       // 103
-    ("NotSigner", ContractError::NotSigner),                     // 104
-    ("UnauthorizedDepositor", ContractError::UnauthorizedDepositor),   // 105
-    ("ContractPaused", ContractError::ContractPaused),           // 106
-    ("InvalidPauseAction", ContractError::InvalidPauseAction),   // 107
-    ("InsufficientSignatures", ContractError::InsufficientSignatures), // 108
-    ("ZeroBytes32", ContractError::ZeroBytes32),                 // 109
-    ("InvalidAdminAddress", ContractError::InvalidAdminAddress), // 110
-    ("AdminUnchanged", ContractError::AdminUnchanged),           // 111
-    ("TimelockNotReady", ContractError::TimelockNotReady),       // 112
-    ("AdminSuspended", ContractError::AdminSuspended),           // 113
-    ("BorrowFrozen", ContractError::BorrowFrozen),               // 114
-    ("NoPendingAdmin", ContractError::NoPendingAdmin),           // 115
-    ("RoleNotHeldAtLedger", ContractError::RoleNotHeldAtLedger), // 116
-    (
-        "EmergencyDrainNotPermitted",
-        ContractError::EmergencyDrainNotPermitted,
-    ), // 117
-    ("TimestampInFuture", ContractError::TimestampInFuture),     // 118
-    ("InvalidMaxPauseSigners", ContractError::InvalidMaxPauseSigners), // 119
-    ("OutsideBusinessHours", ContractError::OutsideBusinessHours),     // 120
-    ("LeaseScopeMismatch", ContractError::LeaseScopeMismatch),   // 121
-    ("LeaseExpired", ContractError::LeaseExpired),               // 122
-    (
-        "CrossContractCallerMismatch",
-        ContractError::CrossContractCallerMismatch,
-    ), // 123
-    ("MigrationInProgress", ContractError::MigrationInProgress), // 124
-    (
-        "MaxPauseSignersExceeded",
-        ContractError::MaxPauseSignersExceeded,
-    ), // 125
-    ("LeaseSignerMismatch", ContractError::LeaseSignerMismatch), // 126
-    ("RoleRequired", ContractError::RoleRequired),               // 127
-    ("DeadlineExpired", ContractError::DeadlineExpired),         // 129
+    ("NotAdmin", ContractError::NotAdmin),                                   // 100
+    ("NotBondOwner", ContractError::NotBondOwner),                           // 101
+    ("UnauthorizedAttester", ContractError::UnauthorizedAttester),           // 102
+    ("NotOriginalAttester", ContractError::NotOriginalAttester),             // 103
+    ("NotSigner", ContractError::NotSigner),                                 // 104
+    ("UnauthorizedDepositor", ContractError::UnauthorizedDepositor),         // 105
+    ("ContractPaused", ContractError::ContractPaused),                       // 106
+    ("InvalidPauseAction", ContractError::InvalidPauseAction),               // 107
+    ("InsufficientSignatures", ContractError::InsufficientSignatures),       // 108
+    ("ZeroBytes32", ContractError::ZeroBytes32),                             // 109
+    ("InvalidAdminAddress", ContractError::InvalidAdminAddress),             // 110
+    ("AdminUnchanged", ContractError::AdminUnchanged),                       // 111
+    ("TimelockNotReady", ContractError::TimelockNotReady),                   // 112
+    ("AdminSuspended", ContractError::AdminSuspended),                       // 113
+    ("BorrowFrozen", ContractError::BorrowFrozen),                           // 114
+    ("NoPendingAdmin", ContractError::NoPendingAdmin),                       // 115
+    ("RoleNotHeldAtLedger", ContractError::RoleNotHeldAtLedger),             // 116
+    ("EmergencyDrainNotPermitted", ContractError::EmergencyDrainNotPermitted), // 117
+    ("TimestampInFuture", ContractError::TimestampInFuture),                 // 118
+    ("InvalidMaxPauseSigners", ContractError::InvalidMaxPauseSigners),       // 119
+    ("OutsideBusinessHours", ContractError::OutsideBusinessHours),           // 120
+    ("LeaseScopeMismatch", ContractError::LeaseScopeMismatch),               // 121
+    ("LeaseExpired", ContractError::LeaseExpired),                           // 122
+    ("CrossContractCallerMismatch", ContractError::CrossContractCallerMismatch), // 123
+    ("MigrationInProgress", ContractError::MigrationInProgress),             // 124
+    ("MaxPauseSignersExceeded", ContractError::MaxPauseSignersExceeded),     // 125
+    ("LeaseSignerMismatch", ContractError::LeaseSignerMismatch),             // 126
+    ("RoleRequired", ContractError::RoleRequired),                           // 127
     // --- Bond (200-299) ---
-    ("BondNotFound", ContractError::BondNotFound),               // 200
-    ("BondNotActive", ContractError::BondNotActive),             // 201
-    ("InsufficientBalance", ContractError::InsufficientBalance), // 202
-    ("SlashExceedsBond", ContractError::SlashExceedsBond),       // 203
-    ("LockupNotExpired", ContractError::LockupNotExpired),       // 204
-    ("NotRollingBond", ContractError::NotRollingBond),           // 205
-    (
-        "WithdrawalAlreadyRequested",
-        ContractError::WithdrawalAlreadyRequested,
-    ), // 206
-    ("ReentrancyDetected", ContractError::ReentrancyDetected),   // 207
-    ("InvalidNonce", ContractError::InvalidNonce),               // 208
-    ("NegativeStake", ContractError::NegativeStake),             // 209
-    ("EarlyExitConfigNotSet", ContractError::EarlyExitConfigNotSet),   // 210
-    ("InvalidPenaltyBps", ContractError::InvalidPenaltyBps),     // 211
-    ("LeverageExceeded", ContractError::LeverageExceeded),       // 212
-    ("UnsupportedToken", ContractError::UnsupportedToken),       // 213
-    ("InvalidBondAmount", ContractError::InvalidBondAmount),     // 214
-    ("AmountExplicitlyZero", ContractError::AmountExplicitlyZero), // 215
-    ("InvalidBondDuration", ContractError::InvalidBondDuration), // 216
-    ("InvalidNoticePeriod", ContractError::InvalidNoticePeriod), // 217
-    ("BondAlreadyExists", ContractError::BondAlreadyExists),     // 218
-    // Codes 219, 220, 221, 225 - shared Bond/Delegation payload mismatches.
-    ("OwnerMismatch", ContractError::OwnerMismatch),             // 219
-    ("TargetMismatch", ContractError::TargetMismatch),           // 220
-    ("ContractIdMismatch", ContractError::ContractIdMismatch),   // 221
-    ("SignatureExpired", ContractError::SignatureExpired),       // 222
-    ("TreasuryNotConfigured", ContractError::TreasuryNotConfigured),   // 223
-    ("StorageCapReached", ContractError::StorageCapReached),     // 224
-    ("DomainMismatch", ContractError::DomainMismatch),           // 225
-    ("CursorOutOfRange", ContractError::CursorOutOfRange),       // 226
-    ("BatchTooLarge", ContractError::BatchTooLarge),             // 227
-    ("EmptyBatch", ContractError::EmptyBatch),                   // 228
-    ("UnsupportedDecimals", ContractError::UnsupportedDecimals), // 229
-    (
-        "InvalidStringifiedBytes",
-        ContractError::InvalidStringifiedBytes,
-    ), // 230
-    ("UnauthorizedToken", ContractError::UnauthorizedToken),     // 231
-    (
-        "DuplicateIdempotencyKey",
-        ContractError::DuplicateIdempotencyKey,
-    ), // 232
-    ("InvariantViolation", ContractError::InvariantViolation),   // 233
-    ("InvalidCurrency", ContractError::InvalidCurrency),         // 234
-    (
-        "SnapshotGenerationMismatch",
-        ContractError::SnapshotGenerationMismatch,
-    ), // 235
-    (
-        "CooldownRequestAlreadyPending",
-        ContractError::CooldownRequestAlreadyPending,
-    ), // 236
-    (
-        "CooldownRequestNotFound",
-        ContractError::CooldownRequestNotFound,
-    ), // 237
-    (
-        "CooldownPeriodNotElapsed",
-        ContractError::CooldownPeriodNotElapsed,
-    ), // 238
-    ("BytesTooLarge", ContractError::BytesTooLarge),             // 239
+    ("BondNotFound", ContractError::BondNotFound),                           // 200
+    ("BondNotActive", ContractError::BondNotActive),                         // 201
+    ("InsufficientBalance", ContractError::InsufficientBalance),             // 202
+    ("SlashExceedsBond", ContractError::SlashExceedsBond),                   // 203
+    ("LockupNotExpired", ContractError::LockupNotExpired),                   // 204
+    ("NotRollingBond", ContractError::NotRollingBond),                       // 205
+    ("WithdrawalAlreadyRequested", ContractError::WithdrawalAlreadyRequested), // 206
+    ("ReentrancyDetected", ContractError::ReentrancyDetected),               // 207
+    ("InvalidNonce", ContractError::InvalidNonce),                           // 208
+    ("NegativeStake", ContractError::NegativeStake),                         // 209
+    ("EarlyExitConfigNotSet", ContractError::EarlyExitConfigNotSet),         // 210
+    ("InvalidPenaltyBps", ContractError::InvalidPenaltyBps),                 // 211
+    ("LeverageExceeded", ContractError::LeverageExceeded),                   // 212
+    ("UnsupportedToken", ContractError::UnsupportedToken),                   // 213
+    ("InvalidBondAmount", ContractError::InvalidBondAmount),                 // 214
+    ("AmountExplicitlyZero", ContractError::AmountExplicitlyZero),           // 215
+    ("InvalidBondDuration", ContractError::InvalidBondDuration),             // 216
+    ("InvalidNoticePeriod", ContractError::InvalidNoticePeriod),             // 217
+    ("BondAlreadyExists", ContractError::BondAlreadyExists),                 // 218
+    ("OwnerMismatch", ContractError::OwnerMismatch),                         // 219
+    ("TargetMismatch", ContractError::TargetMismatch),                       // 220
+    ("ContractIdMismatch", ContractError::ContractIdMismatch),               // 221
+    ("SignatureExpired", ContractError::SignatureExpired),                    // 222
+    ("TreasuryNotConfigured", ContractError::TreasuryNotConfigured),         // 223
+    ("StorageCapReached", ContractError::StorageCapReached),                 // 224
+    ("DomainMismatch", ContractError::DomainMismatch),                       // 225
+    ("CursorOutOfRange", ContractError::CursorOutOfRange),                   // 226
+    ("BatchTooLarge", ContractError::BatchTooLarge),                         // 227
+    ("EmptyBatch", ContractError::EmptyBatch),                               // 228
+    ("UnsupportedDecimals", ContractError::UnsupportedDecimals),             // 229
+    ("InvalidStringifiedBytes", ContractError::InvalidStringifiedBytes),     // 230
+    ("UnauthorizedToken", ContractError::UnauthorizedToken),                 // 231
+    ("DuplicateIdempotencyKey", ContractError::DuplicateIdempotencyKey),     // 232
+    ("InvariantViolation", ContractError::InvariantViolation),               // 233
+    ("InvalidCurrency", ContractError::InvalidCurrency),                     // 234
+    ("SnapshotGenerationMismatch", ContractError::SnapshotGenerationMismatch), // 235
+    ("CooldownRequestAlreadyPending", ContractError::CooldownRequestAlreadyPending), // 236
+    ("CooldownRequestNotFound", ContractError::CooldownRequestNotFound),     // 237
+    ("CooldownPeriodNotElapsed", ContractError::CooldownPeriodNotElapsed),   // 238
+    ("BytesTooLarge", ContractError::BytesTooLarge),                         // 239
     // --- Attestation (300-399) ---
     ("DuplicateAttestation", ContractError::DuplicateAttestation),   // 300
     ("AttestationNotFound", ContractError::AttestationNotFound),     // 301

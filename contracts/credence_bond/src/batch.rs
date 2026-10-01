@@ -142,7 +142,9 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
     // Step 2: Check for existing bonds (before creating any)
     for i in 0..params_list.len() {
         let params = params_list.get(i).unwrap();
+        // Per-identity bond key: each identity owns its own bond slot.
         let bond_key = DataKey::Bond(params.identity.clone());
+
         if e.storage().instance().has(&bond_key) {
             panic!("bond already exists");
         }
@@ -164,7 +166,7 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
             notice_period_duration: params.notice_period_duration,
         };
 
-        // Store the bond under its own identity.
+        // Store the bond under the per-identity key.
         let bond_key = DataKey::Bond(params.identity.clone());
         e.storage().instance().set(&bond_key, &bond);
 
