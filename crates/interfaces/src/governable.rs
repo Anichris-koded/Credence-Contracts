@@ -69,8 +69,8 @@ pub trait Governable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{Symbol, Vec};
-    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use soroban_sdk::{Address, Env};
+    use soroban_sdk::testutils::Address as _;
 
     /// Minimal reference implementation of the `Governable` interface
     /// used to drive the interface tests. This is not shipped in
@@ -81,22 +81,16 @@ mod tests {
     impl ReferenceGovernable {
         const ADMIN_KEY: &'static str = "admin";
 
-        /// The zero/default address that must never hold admin control.
-        fn zero_address(env: &Env) -> Address {
-            env.current_contract_address()
+        pub fn init(env: &Env, admin: Address) {
+            assert!(admin != Address::generate(env), "admin must not be the zero address");
+            env.storage().persistent().set(&Self::ADMIN_KEY, &admin);
         }
 
         pub fn init(env: &Env, admin: Address) {
             assert!(admin != Self::zero_address(env), "admin must not be the zero address");
             env.storage()
                 .persistent()
-                .set(&Symbol::new(env, Self::ADMIN_KEY), &admin);
-        }
-
-        pub fn get_admin(env: &Env) -> Address {
-            env.storage()
-                .persistent()
-                .get::<Symbol, Address>(&Symbol::new(env, Self::ADMIN_KEY))
+                .get::<&str, Address>(&Self::ADMIN_KEY)
                 .expect("admin not initialized")
         }
 
@@ -108,9 +102,18 @@ mod tests {
                 new_admin != Self::zero_address(env),
                 "new admin must not be the zero address"
             );
-            env.storage()
-                .persistent()
-                .set(&Symbol::new(env, Self::ADMIN_KEY), &new_admin);
+            env.storage().persistent().set(&Self::ADMIN_KEY, &new_admin);
+        }
+    }
+
+
+    impl Governable for ReferenceGovernable {
+        fn get_admin(env: Env) -> Address {
+            Self::get_admin(env)
+        }
+        fn set_admin(env: Env, new_admin: Address) {
+            let caller = Self::get_admin(env.clone());
+            Self::set_admin_auth(env, caller, new_admin);
         }
     }
 
@@ -163,8 +166,8 @@ mod tests {
     fn failed_transfer_preserves_admin() {
         let (env, admin, other) = setup();
         let new_admin = Address::generate(&env);
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            ReferenceGovernable::set_admin_auth(&env, other, new_admin.clone());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ReferenceGovernable::set_admin_auth(env.clone(), other, new_admin.clone());
         }));
         assert!(result.is_err(), "expected unauthorized transfer to fail");
         assert_eq!(ReferenceGovernable::get_admin(&env), admin);
@@ -188,8 +191,8 @@ mod tests {
 
         // Old admin is rejected.
         let other = Address::generate(&env);
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            ReferenceGovernable::set_admin_auth(&env, admin.clone(), other.clone());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ReferenceGovernable::set_admin_auth(env.clone(), admin.clone(), other.clone());
         }));
         assert!(result.is_err(), "old admin must lose control");
         assert_eq!(ReferenceGovernable::get_admin(&env), new_admin);

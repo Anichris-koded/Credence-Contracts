@@ -56,9 +56,7 @@ pub fn apply_renewal(bond: &mut IdentityBond, now: u64) -> Result<(), RollingBon
     Ok(())
 }
 
-// [pre-broken on main] — fails to compile against the current
-// contract API; gate kept so the rest of the crate builds.
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::IdentityBond;
@@ -74,7 +72,7 @@ mod tests {
             active: true,
             is_rolling: true,
             withdrawal_requested_at,
-            notice_period_duration: 0,
+            ..Default::default()
         }
     }
 

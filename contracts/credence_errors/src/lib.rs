@@ -22,10 +22,7 @@
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
 use soroban_sdk::contracterror;
-use soroban_sdk::panic_with_error;
-use soroban_sdk::Env;
-use soroban_sdk::Address;
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, panic_with_error, Address, Env};
 /// Project-wide version constant.
 pub const VERSION: &str = "0.1.0";
 
@@ -491,7 +488,7 @@ pub enum ContractError {
     /// Triggered by: token ingress symbol check
     /// Contracts: bond
     /// Wire-stable: do not renumber this error code.
-    InvalidCurrency = 234,
+    InvalidCurrency = 239,
 
     // --- Attestation (300-399) ---
     /// An attestation already exists from this attester for this bond.
@@ -731,6 +728,16 @@ pub enum ContractError {
     /// Contracts: multisig
     /// Wire-stable: do not renumber this error code.
     MaxPauseSignersExceeded = 123,
+
+    /// Cross-contract call originated from an unexpected caller.
+    /// Contracts: bond, delegation
+    /// Wire-stable: do not renumber this error code.
+    CrossContractCallerMismatch = 124,
+
+    /// User-supplied Bytes input exceeds the maximum accepted length.
+    /// Contracts: bond
+    /// Wire-stable: do not renumber this error code.
+    BytesTooLarge = 234,
 
     // --- Treasury (600-699) ---
     /// Amount argument must be strictly positive (> 0).
@@ -1465,12 +1472,10 @@ impl ErrorExt for ContractError {
             ContractError::InvalidPercentSplit => true, // caller can provide valid splits
 
             // --- Arithmetic (700-799): code-level impossibility. ---
-            ContractError::Overflow | ContractError::Underflow => false,
-            ContractError::DivisionByZero => false,
-            ContractError::SignatureExpired => true,  // re-sign with later deadline
-            ContractError::InvalidFlashLoanCallback => false,
-            ContractError::FlashLoanRepaymentFailed => false,
-            ContractError::SnapshotGenerationMismatch | ContractError::TimestampInFuture | ContractError::InvalidCurrency | ContractError::InvalidStringifiedBytes | ContractError::BytesTooLarge | ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => false,
+            ContractError::Overflow
+            | ContractError::Underflow
+            | ContractError::DivisionByZero => false,
+            _ => false, // unclassified errors are non-retryable by default
         }
     }
 }
