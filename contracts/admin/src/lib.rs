@@ -1611,6 +1611,9 @@ impl AdminContract {
 #[cfg(test)]
 mod test;
 
+#[cfg(test)]
+mod test_require_role_at_ledger;
+
 // Pause mechanism entrypoints
 #[contractimpl]
 impl AdminContract {
