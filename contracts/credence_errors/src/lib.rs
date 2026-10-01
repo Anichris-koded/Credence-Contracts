@@ -1395,6 +1395,9 @@ pub fn require_within_ttl_result(e: &Env, expires_at: u64) -> Result<(), Contrac
 #[cfg(test)]
 mod test_errors;
 
+#[cfg(test)]
+mod test_lease_boundaries;
+
 /// Wraps `env.current_contract_address()` with a mock hook for tests.
 #[macro_export]
 macro_rules! contract_address {
