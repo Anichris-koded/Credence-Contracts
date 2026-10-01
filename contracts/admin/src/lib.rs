@@ -1948,6 +1948,9 @@ mod test_basic;
 mod test_zero_address;
 
 #[cfg(test)]
+mod test_zero_address_simple;
+
+#[cfg(test)]
 mod test_immutable_config_simple;
 
 #[cfg(test)]
