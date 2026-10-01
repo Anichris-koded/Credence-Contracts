@@ -1081,14 +1081,13 @@ impl AdminContract {
             panic_with_error!(&e, ContractError::TimelockNotReady);
         }
 
-        // Revalidate immediately before the first ownership write. A proposal is
-        // only an intent: the candidate may have been removed, demoted,
-        // deactivated, or suspended while the timelock elapsed (possibly by a
-        // concurrent transaction). Failing here leaves the owner, pending owner,
-        // proposal timestamp, config epoch, and event stream untouched, so the
-        // current owner can recover by replacing the proposal.
+// Revalidate the pending owner's effective SuperAdmin status at
+        // acceptance time. The candidate's role, activation, or suspension
+        // state may have changed during the timelock window; a stale proposal
+        // must never grant durable ownership to an admin who is no longer an
+        // effective SuperAdmin. This mirrors the check performed by
+        // `transfer_ownership` and preserves the two-step transfer invariant.
         Self::require_effective_super_admin(&e, &pending_owner);
-
         bump_config_epoch(&e);
 
         // Get current owner for event emission
@@ -1147,6 +1146,26 @@ impl AdminContract {
     pub fn get_pending_owner(e: Env) -> Option<Address> {
         bump_instance_ttl(&e);
         e.storage().instance().get(&DataKey::PendingOwner)
+    }
+
+    /// Return the ledger timestamp at which the current pending ownership
+    /// transfer becomes eligible for acceptance, if a transfer is pending.
+    ///
+    /// Returns `None` when no transfer has been proposed. Otherwise returns
+    /// `Some(proposed_at + OWNERSHIP_TRANSFER_TIMELOCK)` — the earliest ledger
+    /// timestamp at which `accept_ownership` will succeed. Clients can use
+    /// this to schedule retries deterministically without guessing.
+    pub fn get_pending_owner_eligible_at(e: Env) -> Option<u64> {
+        bump_instance_ttl(&e);
+        let proposed_at: u64 = e
+            .storage()
+            .instance()
+            .get(&DataKey::TransferProposedAt)?;
+        Some(
+            proposed_at
+                .checked_add(OWNERSHIP_TRANSFER_TIMELOCK)
+                .unwrap_or_else(|| panic_with_error!(&e, ContractError::Overflow)),
+        )
     }
 
     /// Get information about a specific admin.
