@@ -21,7 +21,11 @@
 // use format!/write! for diagnostics).
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
-use soroban_sdk::{contracterror, contracttype, panic_with_error, Address, Env};
+use soroban_sdk::contracterror;
+use soroban_sdk::panic_with_error;
+use soroban_sdk::Env;
+use soroban_sdk::Address;
+use soroban_sdk::contracttype;
 /// Project-wide version constant.
 pub const VERSION: &str = "0.1.0";
 
@@ -489,14 +493,6 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     InvalidCurrency = 234,
 
-    /// User-supplied raw Bytes input exceeds the maximum accepted length.
-    /// Raised by `require_finite_bytes` at entrypoint boundaries that accept
-    /// caller-controlled `Bytes` (e.g. idempotency salts) to bound hashing
-    /// cost and persistent-storage growth before the value is used.
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    BytesTooLarge = 239,
-
     // --- Attestation (300-399) ---
     /// An attestation already exists from this attester for this bond.
     /// Replaces: panic!("duplicate attestation")
@@ -734,12 +730,7 @@ pub enum ContractError {
     /// Registering another pause signer would exceed the configured cap.
     /// Contracts: multisig
     /// Wire-stable: do not renumber this error code.
-    MaxPauseSignersExceeded = 124,
-
-    /// Cross-contract caller does not match the configured partner address.
-    /// Contracts: general-purpose
-    /// Wire-stable: do not renumber this error code.
-    CrossContractCallerMismatch = 123,
+    MaxPauseSignersExceeded = 123,
 
     // --- Treasury (600-699) ---
     /// Amount argument must be strictly positive (> 0).
@@ -920,9 +911,9 @@ impl ErrorExt for ContractError {
             | ContractError::LeaseExpired
             | ContractError::LeaseSignerMismatch
             | ContractError::OutsideBusinessHours
-            |            ContractError::StaleAdminEpoch
+            | ContractError::StaleAdminEpoch
             | ContractError::StaleSignerEpoch
-            | ContractError::CrossContractCallerMismatch => ErrorCategory::Authorization,
+            | ContractError::RoleRequired => ErrorCategory::Authorization,
 
             ContractError::BondNotFound
             | ContractError::BondNotActive
@@ -960,10 +951,13 @@ impl ErrorExt for ContractError {
             | ContractError::InvariantViolation
             | ContractError::InvalidCurrency
             | ContractError::SnapshotGenerationMismatch
-            | ContractError::CooldownRequestAlreadyPending
-            | ContractError::CooldownRequestNotFound
-            | ContractError::CooldownPeriodNotElapsed
-            | ContractError::BytesTooLarge => ErrorCategory::Bond,
+            | ContractError::StorageCapReached
+            | ContractError::TreasuryNotConfigured
+            | ContractError::CursorOutOfRange
+            | ContractError::BatchTooLarge
+            | ContractError::EmptyBatch
+            | ContractError::UnsupportedDecimals => ErrorCategory::Bond,
+            ContractError::InvalidStringifiedBytes | ContractError::SnapshotGenerationMismatch | ContractError::BatchTooLarge => ErrorCategory::Bond,
 
             ContractError::DuplicateAttestation
             | ContractError::AttestationNotFound
@@ -1159,6 +1153,31 @@ impl ErrorExt for ContractError {
             ContractError::DuplicateAttestation => {
                 "Attestation already exists from this attester"
             }
+            ContractError::InvalidBondDuration => "Bond duration must be strictly positive (> 0)",
+            ContractError::InvalidNoticePeriod => "Rolling-bond notice_period_duration must be > 0 and <= duration",
+            ContractError::BondAlreadyExists => "Bond already exists for this identity",
+            ContractError::UnauthorizedToken => "Token address is not in the set of accepted tokens",
+            ContractError::InvalidCurrency => "Empty or whitespace-only currency symbol",
+            ContractError::InvalidStringifiedBytes => {
+                "Hex/base64 stringified bytes input is malformed or too long"
+            }
+            ContractError::SnapshotGenerationMismatch => {
+                "Snapshot generation does not match the current state"
+            }
+            ContractError::StorageCapReached => "Storage cap for attestations or slash history reached",
+            ContractError::TreasuryNotConfigured => "Slash treasury address has not been configured",
+            ContractError::CursorOutOfRange => "Pagination cursor is out of range (cursor >= registry_slots)",
+            ContractError::BatchTooLarge => "Batch input exceeds the maximum allowed size",
+            ContractError::EmptyBatch => "Batch input must contain at least one item",
+            ContractError::InvalidStringifiedBytes => "Stringified bytes are invalid",
+            ContractError::SnapshotGenerationMismatch => "Snapshot generation mismatch",
+            ContractError::TimestampInFuture => "Timestamp is in the future",
+            ContractError::InvalidCurrency => "Invalid currency",
+            ContractError::DuplicateIdempotencyKey => "Idempotency key has already been used for this operation",
+            ContractError::InvariantViolation => {
+                "Bond storage drift detected; bonded/slashed or attestation counters inconsistent"
+            }
+            ContractError::DuplicateAttestation => "Attestation already exists from this attester",
             ContractError::AttestationNotFound => "No attestation found for the given key",
             ContractError::AttestationAlreadyRevoked => "Attestation has already been revoked",
             ContractError::InvalidAttestationWeight => "Attestation weight must be positive",
@@ -1247,6 +1266,33 @@ impl ErrorExt for ContractError {
                 "Settlement destination is not a registered corridor"
             }
             ContractError::Overflow => "Integer overflow in checked arithmetic",
+            ContractError::NoPendingAdmin => "No pending admin transfer exists",
+            ContractError::DomainMismatch => "Payload domain tag does not match expected",
+            ContractError::OwnerMismatch => "Payload owner does not match expected caller",
+            ContractError::TargetMismatch => "Payload target does not match expected action",
+            ContractError::ContractIdMismatch => "Payload contract_id does not match current contract",
+            ContractError::InvalidAdminAddress => "Proposed admin is the zero or identity address",
+            ContractError::AdminUnchanged => "Proposed admin is the same as the current admin",
+            ContractError::TimelockNotReady => "Timelock delay has not yet elapsed",
+            ContractError::ZeroBytes32 => "Input BytesN<32> argument is all-zero",
+            ContractError::TimestampInFuture => {
+                "Supplied timestamp or ledger number is ahead of the current ledger"
+            }
+            ContractError::InvalidMaxPauseSigners => {
+                "Max-pause-signers value must be greater than zero and within the hard cap"
+            }
+            ContractError::MaxPauseSignersExceeded => {
+                "Registering another pause signer would exceed the configured cap"
+            }
+            ContractError::StaleAdminEpoch => {
+                "Admin pause proposal carries a stale epoch reference"
+            }
+            ContractError::StaleSignerEpoch => {
+                "Signer pause proposal carries a stale epoch reference"
+            }
+            ContractError::EmergencyDrainNotPermitted => "Emergency drain requires contract to be paused and timelock window to have elapsed",
+            ContractError::StaleAdminEpoch => "Admin pause proposal ID was derived in a stale epoch",
+            ContractError::StaleSignerEpoch => "Signer pause proposal ID was derived in a stale epoch",
             ContractError::Underflow => "Integer underflow in checked arithmetic",
             ContractError::DivisionByZero => "Division by a zero denominator",
             ContractError::InvalidPercentSplit => {
@@ -1296,26 +1342,14 @@ impl ErrorExt for ContractError {
             | ContractError::RoleNotHeldAtLedger      // re-sign with a valid ledger timestamp
             | ContractError::EmergencyDrainNotPermitted
             | ContractError::RoleNotHeldAtLedger
-            | ContractError::RoleRequired
             | ContractError::ZeroBytes32
-            | ContractError::TimestampInFuture
+            | ContractError::RoleRequired
             | ContractError::LeaseScopeMismatch
             | ContractError::LeaseExpired
             | ContractError::LeaseSignerMismatch
-            => true, // retry after business hours
-
-
-            // Admin can supply a valid value / remove a signer or raise the
-            // cap, then retry.
-            ContractError::InvalidMaxPauseSigners => true,
-            ContractError::MaxPauseSignersExceeded => true,
-
-            // Stale epoch proposals cannot be fixed by retry — re-propose in the
-            // current bucket.
-            ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => false,
-
-            // Cross-contract caller mismatch is a security halt; do not retry.
-            ContractError::CrossContractCallerMismatch => false,
+            | ContractError::TimestampInFuture
+            | ContractError::InvalidMaxPauseSigners
+            | ContractError::MaxPauseSignersExceeded => true, // re-sign with a valid ledger timestamp
 
             // --- Bond (200-299): most errors are caller-fixable. ---
             ContractError::BondNotFound               // create_bond first
@@ -1350,7 +1384,11 @@ impl ErrorExt for ContractError {
             | ContractError::DuplicateIdempotencyKey    // use a different idempotency key
             | ContractError::BatchTooLarge         // reduce batch size
             | ContractError::EmptyBatch            // supply at least one item
-            | ContractError::BytesTooLarge         // resubmit with shorter input
+            | ContractError::SnapshotGenerationMismatch
+            | ContractError::CooldownRequestAlreadyPending
+            | ContractError::CooldownRequestNotFound
+            | ContractError::CooldownPeriodNotElapsed
+            | ContractError::InvalidStringifiedBytes
             => true,
 
             // FATAL Bond: caller cannot directly fix any of these.
@@ -1391,8 +1429,10 @@ impl ErrorExt for ContractError {
             | ContractError::DelegationExpiryTooLong  // shorten to MAX_DURATION
             | ContractError::VerifierAlreadyRegistered
             | ContractError::VerifierNotRegistered
-            | ContractError::DelegationNotExpired     // wait for expiry
-            | ContractError::PayloadTooOld => true,   // re-sign with current ledger number
+            | ContractError::DelegationNotExpired
+            | ContractError::PayloadTooOld => true,    // re-sign with current ledger number
+            | ContractError::StaleAdminEpoch => true,    // retry with fresh epoch
+            | ContractError::StaleSignerEpoch => true,    // retry with fresh epoch
 
             // FATAL Delegation: caller cannot fix these.
             ContractError::UnknownScheme => false,           // scheme tag not supported by this build
@@ -1403,16 +1443,18 @@ impl ErrorExt for ContractError {
             ContractError::StaleEpoch => false,              // stale epoch in proposal; must re-propose
 
             // --- Treasury (600-699): mostly caller-fixable ---
-            ContractError::AmountMustBePositive
-            | ContractError::ThresholdExceedsSigners    // lower threshold
-            | ContractError::InsufficientTreasuryBalance // top up
-            | ContractError::ProposalNotFound
-            | ContractError::ProposalAlreadyExecuted    // idempotent
-            | ContractError::InsufficientApprovals      // collect more approvals
-            | ContractError::ProposalExpired            // create a new proposal
-            | ContractError::SlippageExceeded           // retry with looser min_amount_out
-            | ContractError::TreasuryBeneficiaryMismatch // call with correct treasury address
-            | ContractError::CorridorNotRegistered => true, // admin registers corridor, then retry
+            ContractError::AmountMustBePositive            // supply amount > 0
+            | ContractError::ThresholdExceedsSigners        // lower threshold to <= signer count
+            | ContractError::InsufficientTreasuryBalance    // top up
+            | ContractError::ProposalNotFound               // supply a valid proposal id
+            | ContractError::ProposalAlreadyExecuted        // idempotent
+            | ContractError::InsufficientApprovals          // collect more approvals
+            | ContractError::ProposalExpired                // create a new proposal
+            | ContractError::SlippageExceeded               // retry with a looser min_amount_out
+            | ContractError::TreasuryBeneficiaryMismatch    // call with the correct treasury address
+            | ContractError::CorridorNotRegistered          // admin registers the corridor, then retry
+            | ContractError::InvalidFlashLoanCallback
+            | ContractError::FlashLoanRepaymentFailed => true,
 
             // FATAL Treasury: protocol-level failures.
             ContractError::InvalidFlashLoanCallback => false, // bad magic; same call will fail
@@ -1570,7 +1612,7 @@ macro_rules! require_non_zero_bytes32 {
 /// partner.
 ///
 /// # Panics
-/// Panics with `ContractError::CrossContractCallerMismatch` (code 123) if
+/// Panics with `ContractError::LeaseSignerMismatch` (code 126) if
 /// `caller != expected`.
 pub fn require_matching_contract_id(e: &Env, caller: &Address, expected: &Address) {
     if caller != expected {
@@ -1587,6 +1629,12 @@ pub fn require_matching_contract_id(e: &Env, caller: &Address, expected: &Addres
 pub fn require_matching_treasury_beneficiary(e: &Env, recipient: &Address, treasury: &Address) {
     if recipient != treasury {
         panic_with_error!(e, ContractError::TreasuryBeneficiaryMismatch);
+    }
+}
+
+pub fn require_matching_contract_id(e: &Env, caller: &Address, expected: &Address) {
+    if caller != expected {
+        panic_with_error!(e, ContractError::LeaseSignerMismatch);
     }
 }
 
