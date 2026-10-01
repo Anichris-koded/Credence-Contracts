@@ -1685,6 +1685,9 @@ mod test_immutable_config_simple;
 mod test_authorization;
 
 #[cfg(test)]
+mod test_set_pause_threshold_boundaries;
+
+#[cfg(test)]
 mod test_suspension;
 
 #[cfg(test)]
