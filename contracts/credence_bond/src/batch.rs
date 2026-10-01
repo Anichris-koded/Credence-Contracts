@@ -112,7 +112,7 @@ pub fn validate_batch_bonds(e: &Env, params_list: &Vec<BatchBondParams>) {
 ///     BatchBondParams {
 ///         identity: addr1,
 ///         amount: 1000,
-///         duration: SECONDS_PER_DAY,
+///         duration: credence_math::Timestamp::SECONDS_PER_DAY,
 ///         is_rolling: false,
 ///         notice_period_duration: 0,
 ///     },
@@ -136,7 +136,9 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
     // Step 2: Check for existing bonds (before creating any)
     for i in 0..params_list.len() {
         let params = params_list.get(i).unwrap();
+        // Per-identity bond key: each identity owns its own bond slot.
         let bond_key = DataKey::Bond(params.identity.clone());
+
         if e.storage().instance().has(&bond_key) {
             panic!("bond already exists");
         }
@@ -158,7 +160,7 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
             notice_period_duration: params.notice_period_duration,
         };
 
-        // Store the bond under its own identity.
+        // Store the bond under the per-identity key.
         let bond_key = DataKey::Bond(params.identity.clone());
         e.storage().instance().set(&bond_key, &bond);
 
@@ -235,10 +237,9 @@ pub fn get_batch_total_amount(e: &Env, params_list: &Vec<BatchBondParams>) -> i1
     total
 }
 
-/* [pre-broken on main] #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use credence_math::SECONDS_PER_DAY;
     use soroban_sdk::testutils::Address as _;
 
     #[test]
@@ -252,7 +253,7 @@ mod tests {
         params_list.push_back(BatchBondParams {
             identity: addr1,
             amount: 1000,
-            duration: SECONDS_PER_DAY,
+            duration: credence_math::Timestamp::SECONDS_PER_DAY,
             is_rolling: false,
             notice_period_duration: 0,
         });
@@ -260,7 +261,7 @@ mod tests {
         params_list.push_back(BatchBondParams {
             identity: addr2,
             amount: 2000,
-            duration: SECONDS_PER_DAY,
+            duration: credence_math::Timestamp::SECONDS_PER_DAY,
             is_rolling: false,
             notice_period_duration: 0,
         });
@@ -268,4 +269,4 @@ mod tests {
         let total = get_batch_total_amount(&env, &params_list);
         assert_eq!(total, 3000);
     }
-} */
+}
