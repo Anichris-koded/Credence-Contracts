@@ -231,24 +231,11 @@ fn test_slash_one_above_available_rejected() {
 #[test]
 fn test_slash_on_very_large_bond() {
     let e = Env::default();
-    // Raise the leverage cap to its ceiling so we exercise genuinely large
-    // amounts: MAX_MAX_LEVERAGE (1e8) * MIN_BOND_AMOUNT (1e3) = 1e11.
-    // setup_with_bond_max_mint is avoided because it mints i128::MAX, which
-    // the mock asset rejects outright.
-    let max_amount = 100_000_000_000_i128;
-    let (client, admin, identity, _asset, _contract) =
-        test_helpers::setup_with_token_mint(&e, max_amount * 4);
-    let treasury = Address::generate(&e);
-    client.set_slash_treasury(&admin, &treasury);
-    client.set_max_leverage(&admin, &100_000_000_u32);
-    client.create_bond(
-        &identity,
-        &max_amount,
-        &credence_math::SECONDS_PER_DAY,
-        &false,
-        &0_u64,
+    let (client, admin, identity) = setup_with_bond_max_mint(
+        &e,
+        crate::validation::MAX_BOND_AMOUNT,
+        credence_math::SECONDS_PER_DAY,
     );
-    test_helpers::advance_ledger_sequence(&e);
 
     let bond = client.slash(&admin, &identity, &(max_amount / 4));
 

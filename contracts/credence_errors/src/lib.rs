@@ -412,6 +412,12 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     BytesTooLarge = 239,
 
+    /// User-supplied `Bytes` input exceeds the maximum accepted length.
+    /// Triggered by: `validation::require_finite_bytes` bounds check
+    /// Contracts: bond
+    /// Wire-stable: do not renumber this error code.
+    BytesTooLarge = 239,
+
     /// Post-write invariant self-check detected bond or attestation accounting drift.
     /// Triggered by: `invariants::assert_self_consistent` after a bond-module write
     /// Contracts: bond
@@ -1498,6 +1504,11 @@ impl ErrorExt for ContractError {
             | ContractError::CorridorNotRegistered          // admin registers the corridor, then retry
             | ContractError::InvalidFlashLoanCallback
             | ContractError::FlashLoanRepaymentFailed => true,
+
+            // Flash-loan callback/repayment failures are protocol-level
+            // impossibilities for the same call; retrying cannot succeed.
+            ContractError::InvalidFlashLoanCallback => false, // bad magic value
+            ContractError::FlashLoanRepaymentFailed => false, // principal+fee mismatch
 
             // Flash-loan callback/repayment failures are protocol-level
             // impossibilities for the same call; retrying cannot succeed.

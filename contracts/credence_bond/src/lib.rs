@@ -81,9 +81,6 @@ mod test_describe;
 #[cfg(test)]
 pub mod test_helpers;
 /// Shared test setup utilities (mock token, bond registration).
-#[cfg(test)]
-pub mod test_helpers;
-/// Shared test setup utilities (mock token, bond registration).
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_unauthorized_token;
 /// Real on-chain USDC transfer integration tests for create_bond/top_up/

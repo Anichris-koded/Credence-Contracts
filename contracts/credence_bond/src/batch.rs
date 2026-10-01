@@ -143,7 +143,6 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
     for i in 0..params_list.len() {
         let params = params_list.get(i).unwrap();
         let bond_key = DataKey::Bond(params.identity.clone());
-
         if e.storage().instance().has(&bond_key) {
             panic!("bond already exists");
         }
