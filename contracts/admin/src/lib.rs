@@ -1990,4 +1990,5 @@ mod test_get_admin_info_boundaries;
 mod test_atomic_rollback;
 
 #[cfg(test)]
+mod test_require_valid_admin_address;
 mod test_pause_boundary_recovery;
