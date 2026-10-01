@@ -2,8 +2,15 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
+// `access_control` was not in the module tree on `main`, so none of it was
+// compiled or reachable. Made `pub` rather than private so the integration test
+// target in `tests/access_control_boundaries.rs` can exercise the guards against
+// the production build.
+pub mod access_control;
 #[cfg(test)]
 mod batch;
+#[cfg(test)]
+pub use batch::{BatchBondParams, BatchBondResult};
 mod claims;
 mod cooldown;
 mod early_exit_penalty;
@@ -83,6 +90,12 @@ mod test_unauthorized_token;
 mod test_validation;
 #[cfg(test)]
 mod test_zero_address;
+#[cfg(test)]
+mod test_fork_divergent;
+
+/// Boundary and recovery coverage for the security module.
+#[cfg(test)]
+mod security;
 
 /// Chaos testing suite for simulating host and token failures.
 // [pre-broken on main] #[cfg(test)]
@@ -137,8 +150,20 @@ mod test_claim_expiry_sweep;
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_max_leverage;
 
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_migration_guard;
+/// Boundary and recovery tests for `leverage.rs`: unit, integration, and
+/// regression coverage for `validate_leverage` (issue #1336).
+#[cfg(test)]
+mod test_leverage;
+
+// Re-enabled: the guard suite was disabled on main, so `migration.rs`
+// had no compiled coverage at all (issue #1340).
+#[cfg(test)]
+mod test_migration_guard;
+
+/// Boundary, idempotency, and recovery coverage for `migration.rs`'s
+/// `migrate_v1_to_v2` lazy migration (issue #1340).
+#[cfg(test)]
+mod test_migration;
 
 /// Tests for the same-ledger sequencing guard (#996 — anti-sandwich).
 // [pre-broken on main] #[cfg(test)]
@@ -148,6 +173,21 @@ mod test_claim_expiry_sweep;
 /// oversized, and injected-null cases (issue #770).
 #[cfg(test)]
 mod test_verify_stringified_bytes;
+
+/// Boundary and edge-case tests for event emissions (#1324).
+/// Validates numeric boundaries, invalid inputs, empty values, and large collections.
+#[cfg(test)]
+mod test_events_boundary;
+
+/// Recovery and idempotence tests for event emissions (#1324).
+/// Validates duplicate emissions, retries, sequence consistency, and no-loss guarantees.
+#[cfg(test)]
+mod test_events_recovery;
+
+/// Invariant and correctness tests for event emissions (#1324).
+/// Validates event data correctness, invariant preservation, and schema immutability.
+#[cfg(test)]
+mod test_events_invariants;
 
 use credence_errors::ContractError;
 use soroban_sdk::{
@@ -1018,6 +1058,67 @@ impl CredenceBond {
         bond
     }
 
+    // ── Batch Bond Operations ─────────────────────────────────────────────
+    // These entrypoints delegate to the `batch` module which is compiled
+    // test-only (`#[cfg(test)] mod batch`).  They are excluded from the
+    // production WASM but are present in the test-mode client so
+    // `test_batch.rs` can exercise them through the normal contract path.
+
+    /// Create multiple bonds atomically in a single transaction.
+    ///
+    /// All bonds are validated first (fail-fast). If any bond fails validation,
+    /// the **entire** batch is rejected before any state is written.
+    ///
+    /// # Panics
+    /// * `ContractError::EmptyBatch` if `params_list` is empty.
+    /// * `ContractError::BatchTooLarge` if `params_list.len() > MAX_BATCH_BOND_SIZE`.
+    /// * `"invalid amount in batch"` if any bond has `amount <= 0`.
+    /// * `"duration overflow in batch"` if any bond's end timestamp would overflow.
+    /// * `"rolling bond requires notice period"` if any rolling bond has `notice_period_duration == 0`.
+    /// * `"bond already exists"` if any identity already has an active bond.
+    ///
+    /// # Events
+    /// Emits `batch_bonds_created` on success.
+    #[cfg(test)]
+    pub fn create_batch_bonds(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> batch::BatchBondResult {
+        Self::require_not_paused(&e);
+        batch::create_batch_bonds(&e, params_list)
+    }
+
+    /// Validate a batch of bond parameters without writing any state.
+    ///
+    /// Useful for pre-flight checks: identical validation rules as
+    /// [`create_batch_bonds`] with no side effects. Returns `true` when all
+    /// bonds are valid.
+    ///
+    /// # Panics
+    /// Same panic conditions as [`create_batch_bonds`], minus the duplicate-bond check.
+    #[cfg(test)]
+    pub fn validate_batch_bonds(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> bool {
+        batch::validate_batch(&e, params_list)
+    }
+
+    /// Return the total bonded amount across a batch (no state written).
+    ///
+    /// Useful for calculating aggregate collateral requirements before submitting
+    /// a batch. Panics with `"batch total overflow"` if the sum would overflow `i128`.
+    ///
+    /// # Returns
+    /// `0` for an empty batch; the arithmetic sum of all `amount` fields otherwise.
+    #[cfg(test)]
+    pub fn get_batch_total_amount(
+        e: Env,
+        params_list: soroban_sdk::Vec<batch::BatchBondParams>,
+    ) -> i128 {
+        batch::get_batch_total_amount(&e, &params_list)
+    }
+
     /// Retrieve the current bond state.
     ///
     /// Errors:
@@ -1702,8 +1803,6 @@ impl CredenceBond {
             Self::release_lock(&e);
             panic_with_error!(&e, ContractError::EarlyExitConfigNotSet)
         });
-        let cfg = early_exit_penalty::get_config(&e)
-            .unwrap_or_else(|_| panic_with_error!(&e, ContractError::EarlyExitConfigNotSet));
         let penalty_bps = cfg.penalty_bps;
 
         let remaining = end.saturating_sub(now);
@@ -3390,6 +3489,11 @@ mod test_bps_denominator;
 
 /// Access-control test helpers used by integration test modules.
 /// Excluded from release WASM.
+// The in-crate `test_access_control` module is still disabled: it is part of
+// the 266-error `--lib` test target left broken on `main`, so it cannot be
+// compiled or run even with its two stale call sites fixed here. Its coverage
+// now lives in `tests/access_control_boundaries.rs` (issue #1316), which links
+// the production build and therefore actually executes.
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] pub mod test_access_control;
 /// Regression guard: canonical lifecycle scenarios with pinned expected states,
@@ -3415,6 +3519,11 @@ mod test_bps_denominator;
 #[cfg(test)]
 mod test_batch_transfer;
 
+/// Tests for batch bond creation operations in batch.rs (issue #1317).
+/// Covers boundary, recovery, retry/stale, and authorization invariants.
+#[cfg(test)]
+mod test_batch;
+
 #[cfg(test)]
 mod test_create_bond;
 
@@ -3436,6 +3545,18 @@ mod test_lifecycle_invariants;
 /// Emergency pause gating tests (issue #1042).
 #[cfg(test)]
 mod test_pausable;
+
+/// Boundary-case coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_boundary;
+
+/// Adversarial/recovery coverage for `pausable.rs` (issue #1344).
+#[cfg(test)]
+mod test_pausable_recovery;
+
+/// Boundary/recovery unit coverage for the `emergency` module (issue #1322).
+#[cfg(test)]
+mod test_emergency_boundaries;
 
 use interfaces::governable::Governable;
 

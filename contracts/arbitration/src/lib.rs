@@ -105,10 +105,29 @@ fn bump_instance_ttl(e: &Env) {
 fn require_no_ongoing_dispute(e: &Env, creator: &Address) -> Result<(), ArbitrationError> {
     // Prevent a creator from re-entering the dispute lifecycle while an
     // unresolved dispute remains active for the same address.
+    //
+    // A stale `ActiveDispute` record can outlive the underlying dispute (e.g.
+    // after a prior resolved/cancelled state or storage drift). Treat that as a
+    // recoverable stale state instead of permanently locking the creator out.
     let key = DataKey::ActiveDispute(creator.clone());
-    if e.storage().instance().has(&key) {
+    let Some(active_id) = e.storage().instance().get::<DataKey, u64>(&key) else {
+        return Ok(());
+    };
+
+    let Some(dispute) = e.storage().instance().get::<DataKey, Dispute>(&DataKey::Dispute(active_id))
+    else {
+        e.storage().instance().remove(&key);
+        return Ok(());
+    };
+
+    if matches!(
+        dispute.status,
+        DisputeStatus::Open | DisputeStatus::Voting | DisputeStatus::Resolving
+    ) {
         return Err(ArbitrationError::OngoingDispute);
     }
+
+    e.storage().instance().remove(&key);
     Ok(())
 }
 
@@ -877,6 +896,9 @@ impl interfaces::governable::Governable for ArbitrationContract {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod test_dispute_guard;
 
 #[cfg(test)]
 mod test_pausable;
