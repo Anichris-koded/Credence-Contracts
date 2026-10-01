@@ -489,28 +489,6 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     InvalidCurrency = 234,
 
-    /// Signed payload was produced against a different snapshot generation than
-    /// the generation supplied to the verification call.
-    /// Raised by: `liquidation_scanner` generation guard
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    SnapshotGenerationMismatch = 235,
-
-    /// A cooldown withdrawal request is already pending for this bond owner.
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    CooldownRequestAlreadyPending = 236,
-
-    /// No cooldown withdrawal request exists to act on.
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    CooldownRequestNotFound = 237,
-
-    /// The cooldown period has not elapsed yet.
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    CooldownPeriodNotElapsed = 238,
-
     /// User-supplied raw Bytes input exceeds the maximum accepted length.
     /// Raised by `require_finite_bytes` at entrypoint boundaries that accept
     /// caller-controlled `Bytes` (e.g. idempotency salts) to bound hashing
@@ -706,6 +684,63 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     StaleSignerEpoch = 515,
 
+    // --- Shared Bond/Delegation payload mismatch errors (218-221) ---
+    // Wire-stable: codes documented in the note above; kept distinct from the
+    // delegation scheme/verifier errors (504-507).
+    DomainMismatch = 225,
+    OwnerMismatch = 219,
+    TargetMismatch = 220,
+    ContractIdMismatch = 221,
+
+    /// A signed payload's deadline has passed.
+    /// Replaces: panic!("signature expired")
+    /// Contracts: bond, delegation, timelock
+    /// Wire-stable: do not renumber this error code.
+    SignatureExpired = 222,
+
+    // --- Admin Transfer (115-119) ---
+    /// No pending admin transfer exists.
+    NoPendingAdmin = 115,
+
+    /// Proposed admin is the zero/identity address.
+    InvalidAdminAddress = 110,
+
+    /// Proposed admin is the same as the current admin.
+    AdminUnchanged = 111,
+
+    /// Timelock delay has not yet elapsed.
+    TimelockNotReady = 112,
+
+    /// Emergency drain is not permitted: contract must be paused and timelock window must have elapsed.
+    /// Contracts: bond
+    /// Wire-stable: do not renumber this error code.
+    EmergencyDrainNotPermitted = 117,
+
+    /// Supplied timestamp or ledger number is ahead of the current ledger.
+    ///
+    /// Raised by `verify_no_future_ledger` when the caller-supplied
+    /// timestamp exceeds the on-chain ledger timestamp, indicating the
+    /// value could not have been produced by the network.
+    ///
+    /// Contracts: general-purpose
+    /// Wire-stable: do not renumber this error code.
+    TimestampInFuture = 118,
+
+    /// Requested max-pause-signers value is zero or exceeds the hard cap.
+    /// Contracts: multisig
+    /// Wire-stable: do not renumber this error code.
+    InvalidMaxPauseSigners = 119,
+
+    /// Registering another pause signer would exceed the configured cap.
+    /// Contracts: multisig
+    /// Wire-stable: do not renumber this error code.
+    MaxPauseSignersExceeded = 124,
+
+    /// Cross-contract caller does not match the configured partner address.
+    /// Contracts: general-purpose
+    /// Wire-stable: do not renumber this error code.
+    CrossContractCallerMismatch = 123,
+
     // --- Treasury (600-699) ---
     /// Amount argument must be strictly positive (> 0).
     /// Replaces: panic!("amount must be positive")
@@ -866,6 +901,9 @@ impl ErrorExt for ContractError {
             | ContractError::ContractPaused
             | ContractError::InvalidPauseAction
             | ContractError::InsufficientSignatures
+            | ContractError::AdminSuspended
+            | ContractError::RoleNotHeldAtLedger
+            | ContractError::RoleRequired
             | ContractError::ZeroBytes32
             | ContractError::InvalidAdminAddress
             | ContractError::AdminUnchanged
@@ -880,13 +918,11 @@ impl ErrorExt for ContractError {
             | ContractError::OutsideBusinessHours
             | ContractError::LeaseScopeMismatch
             | ContractError::LeaseExpired
-            | ContractError::CrossContractCallerMismatch
-            | ContractError::MigrationInProgress
-            | ContractError::MaxPauseSignersExceeded
             | ContractError::LeaseSignerMismatch
-            | ContractError::RoleRequired
-            | ContractError::StaleAdminEpoch
-            | ContractError::StaleSignerEpoch => ErrorCategory::Authorization,
+            | ContractError::OutsideBusinessHours
+            |            ContractError::StaleAdminEpoch
+            | ContractError::StaleSignerEpoch
+            | ContractError::CrossContractCallerMismatch => ErrorCategory::Authorization,
 
             ContractError::BondNotFound
             | ContractError::BondNotActive
@@ -1259,14 +1295,15 @@ impl ErrorExt for ContractError {
             | ContractError::NoPendingAdmin           // call begin_admin_transfer first
             | ContractError::RoleNotHeldAtLedger      // re-sign with a valid ledger timestamp
             | ContractError::EmergencyDrainNotPermitted
+            | ContractError::RoleNotHeldAtLedger
             | ContractError::RoleRequired
+            | ContractError::ZeroBytes32
             | ContractError::TimestampInFuture
             | ContractError::LeaseScopeMismatch
             | ContractError::LeaseExpired
             | ContractError::LeaseSignerMismatch
-            | ContractError::OutsideBusinessHours     // retry after business hours
-            | ContractError::MigrationInProgress      // wait for migration to complete, then retry
-            => true,
+            => true, // retry after business hours
+
 
             // Admin can supply a valid value / remove a signer or raise the
             // cap, then retry.
@@ -1309,6 +1346,7 @@ impl ErrorExt for ContractError {
             | ContractError::UnauthorizedToken
             | ContractError::InvalidCurrency
             | ContractError::InvalidStringifiedBytes
+            | ContractError::SnapshotGenerationMismatch // retry with correct generation
             | ContractError::DuplicateIdempotencyKey    // use a different idempotency key
             | ContractError::BatchTooLarge         // reduce batch size
             | ContractError::EmptyBatch            // supply at least one item
@@ -1380,10 +1418,17 @@ impl ErrorExt for ContractError {
             ContractError::InvalidFlashLoanCallback => false, // bad magic; same call will fail
             ContractError::FlashLoanRepaymentFailed => false,  // bad repayment; same call will fail
 
-            // --- Arithmetic (700-799) ---
+
+
+            ContractError::InvalidPercentSplit => true, // caller can provide valid splits
+
+            // --- Arithmetic (700-799): code-level impossibility. ---
             ContractError::Overflow | ContractError::Underflow => false,
             ContractError::DivisionByZero => false,
-            ContractError::InvalidPercentSplit => true, // supply splits that sum to 10_000
+            ContractError::SignatureExpired => true,  // re-sign with later deadline
+            ContractError::InvalidFlashLoanCallback => false,
+            ContractError::FlashLoanRepaymentFailed => false,
+            ContractError::SnapshotGenerationMismatch | ContractError::TimestampInFuture | ContractError::InvalidCurrency | ContractError::InvalidStringifiedBytes | ContractError::BytesTooLarge | ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => false,
         }
     }
 }

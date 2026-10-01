@@ -135,7 +135,16 @@ pub fn is_used(e: &Env, actor: &Address, operation: &Symbol, salt: &Bytes) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CredenceBond;
     use soroban_sdk::testutils::Address as _;
+
+    /// Idempotency keys live in instance storage, which the host only allows
+    /// while executing inside a contract. Every case below therefore runs its
+    /// body through a real contract context.
+    fn in_contract<R>(e: &Env, f: impl FnOnce() -> R) -> R {
+        let contract = e.register(CredenceBond, ());
+        e.as_contract(&contract, f)
+    }
 
     #[test]
     fn test_compute_key_deterministic() {
@@ -195,12 +204,11 @@ mod tests {
     #[test]
     fn test_is_used_initially_false() {
         let e = Env::default();
-        let contract_id = e.register(crate::CredenceBond, ());
-        let actor = Address::generate(&e);
-        let operation = Symbol::new(&e, "test_op");
-        let salt = Bytes::from_slice(&e, b"test_salt");
+        in_contract(&e, || {
+            let actor = Address::generate(&e);
+            let operation = Symbol::new(&e, "test_op");
+            let salt = Bytes::from_slice(&e, b"test_salt");
 
-        e.as_contract(&contract_id, || {
             assert!(!is_used(&e, &actor, &operation, &salt));
         });
     }
@@ -208,17 +216,16 @@ mod tests {
     #[test]
     fn test_check_and_record_prevents_duplicate() {
         let e = Env::default();
-        let contract_id = e.register(crate::CredenceBond, ());
-        let actor = Address::generate(&e);
-        let operation = Symbol::new(&e, "test_op");
-        let salt = Bytes::from_slice(&e, b"test_salt");
-        let salt2 = Bytes::from_slice(&e, b"other_salt");
+        in_contract(&e, || {
+            let actor = Address::generate(&e);
+            let operation = Symbol::new(&e, "test_op");
+            let salt = Bytes::from_slice(&e, b"test_salt");
 
-        e.as_contract(&contract_id, || {
             // First call should succeed
             check_and_record(&e, &actor, &operation, &salt);
 
             // Second call with a different salt should also succeed
+            let salt2 = Bytes::from_slice(&e, b"other_salt");
             check_and_record(&e, &actor, &operation, &salt2);
             assert!(is_used(&e, &actor, &operation, &salt));
             assert!(is_used(&e, &actor, &operation, &salt2));
@@ -229,12 +236,10 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #")]
     fn test_check_and_record_panics_on_duplicate() {
         let e = Env::default();
-        let contract_id = e.register(crate::CredenceBond, ());
-        let actor = Address::generate(&e);
-        let operation = Symbol::new(&e, "test_op");
-        let salt = Bytes::from_slice(&e, b"test_salt");
-
-        e.as_contract(&contract_id, || {
+        in_contract(&e, || {
+            let actor = Address::generate(&e);
+            let operation = Symbol::new(&e, "test_op");
+            let salt = Bytes::from_slice(&e, b"test_salt");
             check_and_record(&e, &actor, &operation, &salt);
             check_and_record(&e, &actor, &operation, &salt);
         });
@@ -243,13 +248,12 @@ mod tests {
     #[test]
     fn test_different_keys_dont_conflict() {
         let e = Env::default();
-        let contract_id = e.register(crate::CredenceBond, ());
-        let actor = Address::generate(&e);
-        let operation = Symbol::new(&e, "test_op");
-        let salt1 = Bytes::from_slice(&e, b"salt1");
-        let salt2 = Bytes::from_slice(&e, b"salt2");
+        in_contract(&e, || {
+            let actor = Address::generate(&e);
+            let operation = Symbol::new(&e, "test_op");
+            let salt1 = Bytes::from_slice(&e, b"salt1");
+            let salt2 = Bytes::from_slice(&e, b"salt2");
 
-        e.as_contract(&contract_id, || {
             // Both should succeed
             check_and_record(&e, &actor, &operation, &salt1);
             check_and_record(&e, &actor, &operation, &salt2);
