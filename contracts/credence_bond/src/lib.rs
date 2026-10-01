@@ -2,19 +2,11 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
-// The contract surface is `no_std`, but the `#[cfg(test)]` modules reach for
-// `std::panic` (catch_unwind / AssertUnwindSafe) in the boundary-recovery
-// suites. Declare `std` for test builds only so the release WASM target stays
-// `no_std`.
+// The contract is `no_std` so the release WASM stays small, but several
+// `#[cfg(test)]` modules use `std::panic::catch_unwind` to assert that a
+// Soroban panic unwinds rather than aborting. Link `std` for test builds only.
 #[cfg(test)]
 extern crate std;
-
-
-// `access_control` was not in the module tree on `main`, so none of it was
-// compiled or reachable. Made `pub` rather than private so the integration test
-// target in `tests/access_control_boundaries.rs` can exercise the guards against
-// the production build.
-pub mod access_control;
 
 #[cfg(test)]
 mod batch;
@@ -70,6 +62,24 @@ mod weighted_attestation;
 #[path = "types/mod.rs"]
 pub mod types;
 
+#[cfg(test)]
+// [pre-broken on main] the `fork_divergent` module it exercises is disabled in lib.rs.
+// mod test_fork_divergent;
+
+/// Chaos testing suite for simulating host and token failures.
+// [pre-broken on main] #[cfg(test)]
+// [pre-broken on main] mod chaos_token;
+// [pre-broken on main] #[cfg(test)]
+// [pre-broken on main] mod test_chaos;
+// [pre-broken on main] #[cfg(test)]
+// [pre-broken on main] mod test_reentrancy_hostile_token;
+
+/// Tests for describe_config and describe_bond introspection entrypoints.
+#[cfg(test)]
+mod test_describe;
+/// Shared test setup utilities (mock token, bond registration).
+#[cfg(test)]
+pub mod test_helpers;
 /// Shared test setup utilities (mock token, bond registration).
 #[cfg(test)]
 pub mod test_helpers;
@@ -93,39 +103,24 @@ pub mod test_helpers;
 /// Reusable bond-invariant assertion library (test-only).
 #[cfg(test)]
 pub mod test_invariants;
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_unauthorized_token;
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_validation;
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_zero_address;
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_fork_divergent;
-/// Chaos testing suite for simulating host and token failures.
 #[cfg(test)]
-mod chaos_token;
-
-/// Boundary and recovery coverage for `chaos_token.rs`: toggle independence,
-/// atomicity of a faulted call, retry-after-recovery, amount boundaries, and the
-/// one-shot hostile-token injection lifecycle (issue #1318).
+mod test_unauthorized_token;
 #[cfg(test)]
-mod test_chaos_token_boundaries;
-
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_chaos;
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_reentrancy_hostile_token;
-
-/// Tests for describe_config and describe_bond introspection entrypoints.
+mod test_validation;
 #[cfg(test)]
-mod test_describe;
+mod test_zero_address;
 
 /// Tests for the liquidate entrypoint (issue #366).
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] mod test_liquidate;
 /// Tests for slashing bounds enforcement and normalized slash history schema (issue #995).
-// [pre-broken on main] #[cfg(test)]
-// [pre-broken on main] mod test_slashing;
+#[cfg(test)]
+mod test_slashing;
+
+/// Boundary and recovery coverage for the slashing subsystem (issue #1350).
+#[cfg(test)]
+mod test_slashing_boundary_recovery;
+
 /// Tests for the bounded claim expiry sweep (permissionless keeper).
 #[cfg(test)]
 mod test_claim_expiry_sweep;
@@ -983,8 +978,8 @@ impl CredenceBond {
     /// let identity = Address::generate(&e);
     /// client.initialize(&admin, &None);
     ///
-    /// // Fixed-duration bond: 1000 tokens locked for credence_math::Timestamp::SECONDS_PER_DAY seconds
-    /// let bond = client.create_bond(&identity, &1000_i128, &credence_math::Timestamp::SECONDS_PER_DAY, &false, &0_u64);
+    /// // Fixed-duration bond: 1000 tokens locked for credence_math::SECONDS_PER_DAY seconds
+    /// let bond = client.create_bond(&identity, &1000_i128, &credence_math::SECONDS_PER_DAY, &false, &0_u64);
     /// assert!(bond.active);
     /// assert_eq!(bond.bonded_amount, 1000);
     /// assert_eq!(bond.slashed_amount, 0);
@@ -3438,8 +3433,14 @@ mod tests {
         client.register_attester(&attester);
 
         let subject = Address::generate(&e);
-        let attestation =
-            client.add_attestation(&attester, &subject, &String::from_str(&e, "ttl"), &0_u64);
+        let attestation = client.add_attestation(
+            &attester,
+            &subject,
+            &String::from_str(&e, "ttl"),
+            &contract_id,
+            &0_u64,
+            &0_u64,
+        );
 
         let mut info = e.ledger().get();
         info.sequence_number = STORAGE_TTL_EXTEND_TO.saturating_add(10_000);

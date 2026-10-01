@@ -15,7 +15,7 @@
 use credence_bond::CredenceBondClient;
 use soroban_sdk::{
     testutils::{Address as _, EnvTestConfig, Ledger as _},
-    Address, Env, String as SorobanString,
+    Address, Bytes, Env, String as SorobanString,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -96,9 +96,9 @@ fn measure_all() -> BTreeMap<String, EntryCost> {
         let env = fresh_env();
         let client = CredenceBondClient::new(&env, &env.register(credence_bond::CredenceBond, ()));
         let identity = Address::generate(&env);
-        env.ledger().set_timestamp(0);
+        env.ledger().with_mut(|li| li.timestamp = 0);
         client.create_bond(&identity, &bond_amount, &duration, &false, &0_u64);
-        env.ledger().set_timestamp(2_000);
+        env.ledger().with_mut(|li| li.timestamp = 2_000);
         client.withdraw(&identity, &(bond_amount / 10));
         out.insert("withdraw".into(), measure(&env));
     }
@@ -112,9 +112,9 @@ fn measure_all() -> BTreeMap<String, EntryCost> {
         let identity = Address::generate(&env);
         client.initialize(&admin, &None);
         client.set_early_exit_config(&admin, &treasury, &500_u32);
-        env.ledger().set_timestamp(0);
+        env.ledger().with_mut(|li| li.timestamp = 0);
         client.create_bond(&identity, &bond_amount, &duration, &false, &0_u64);
-        env.ledger().set_timestamp(100);
+        env.ledger().with_mut(|li| li.timestamp = 100);
         client.withdraw_early(&identity, &(bond_amount / 10));
         out.insert("withdraw_early".into(), measure(&env));
     }
@@ -127,22 +127,22 @@ fn measure_all() -> BTreeMap<String, EntryCost> {
         let identity = Address::generate(&env);
         client.initialize(&admin, &None);
         client.create_bond(&identity, &bond_amount, &duration, &false, &0_u64);
-        let salt = soroban_sdk::Bytes::new(&env);
-        client.slash_bond(&admin, &identity, &(bond_amount / 10), &salt);
+        client.slash_bond(&admin, &identity, &(bond_amount / 10), &Bytes::new(&env));
         out.insert("slash_bond".into(), measure(&env));
     }
 
     // add_attestation — a registered attester attests to a subject.
     {
         let env = fresh_env();
-        let client = CredenceBondClient::new(&env, &env.register(credence_bond::CredenceBond, ()));
+        let contract_id = env.register(credence_bond::CredenceBond, ());
+        let client = CredenceBondClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let attester = Address::generate(&env);
         let subject = Address::generate(&env);
         client.initialize(&admin, &None);
         client.register_attester(&attester);
         let data = SorobanString::from_str(&env, "kyc:passed");
-        client.add_attestation(&attester, &subject, &data, &0_u64);
+        client.add_attestation(&attester, &subject, &data, &contract_id, &0_u64, &0_u64);
         out.insert("add_attestation".into(), measure(&env));
     }
 

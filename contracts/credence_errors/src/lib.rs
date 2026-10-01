@@ -406,7 +406,15 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     TargetMismatch = 220,
 
-    /// Payload contract_id does not match current contract.
+    /// User-supplied `Bytes` input exceeds the maximum accepted length.
+    /// Triggered by: `validation::require_finite_bytes` bounds check
+    /// Contracts: bond
+    /// Wire-stable: do not renumber this error code.
+    BytesTooLarge = 239,
+
+    /// Post-write invariant self-check detected bond or attestation accounting drift.
+    /// Triggered by: `invariants::assert_self_consistent` after a bond-module write
+    /// Contracts: bond
     /// Wire-stable: do not renumber this error code.
     ContractIdMismatch = 221,
 
@@ -488,12 +496,6 @@ pub enum ContractError {
     /// Contracts: bond
     /// Wire-stable: do not renumber this error code.
     InvalidCurrency = 234,
-
-    /// User-supplied Bytes input exceeds the maximum accepted length.
-    /// Triggered by: `require_finite_bytes` boundary guard
-    /// Contracts: bond
-    /// Wire-stable: do not renumber this error code.
-    BytesTooLarge = 239,
 
     // --- Attestation (300-399) ---
     /// An attestation already exists from this attester for this bond.
@@ -729,10 +731,8 @@ pub enum ContractError {
     /// Wire-stable: do not renumber this error code.
     InvalidMaxPauseSigners = 119,
 
-    /// Cross-contract call arrived from an unexpected caller address.
-    /// Triggered by: `assert_cross_contract_caller` when the invoking
-    /// contract does not match the registered trusted contract address.
-    /// Contracts: bond, delegation
+    /// Cross-contract call did not originate from the expected peer contract.
+    /// Contracts: general-purpose
     /// Wire-stable: do not renumber this error code.
     CrossContractCallerMismatch = 123,
 
@@ -740,6 +740,12 @@ pub enum ContractError {
     /// Contracts: multisig
     /// Wire-stable: do not renumber this error code.
     MaxPauseSignersExceeded = 124,
+
+    // NOTE: `RoleNotHeldAtLedger = 116` and `SignatureExpired = 222` are defined
+    // once, earlier in this enum (Authorization and Bond sections respectively).
+    // A botched merge reintroduced them here, which made the enum fail to compile
+    // with E0428/E0081. Only the duplicate definitions were removed; the wire
+    // codes and the canonical doc comments are unchanged.
 
     // --- Treasury (600-699) ---
     /// Amount argument must be strictly positive (> 0).
@@ -1364,25 +1370,29 @@ impl ErrorExt for ContractError {
             | ContractError::NoPendingAdmin           // call begin_admin_transfer first
             | ContractError::RoleNotHeldAtLedger      // re-sign with a valid ledger timestamp
             | ContractError::EmergencyDrainNotPermitted
-            | ContractError::RoleNotHeldAtLedger
-            | ContractError::RoleRequired           // re-present the required role
-            | ContractError::ZeroBytes32            // supply a non-zero Bytes32
-            | ContractError::TimestampInFuture      // resubmit with a valid (past) timestamp
-            | ContractError::LeaseScopeMismatch     // correct operation scope
-            | ContractError::LeaseExpired           // renew lease first
-            | ContractError::LeaseSignerMismatch    // present correct signer
-            => true, // re-sign with a valid ledger timestamp
+            | ContractError::RoleNotHeldAtLedger       // re-sign with a valid ledger timestamp
+            | ContractError::RoleRequired              // caller must hold the required role
+            | ContractError::ZeroBytes32               // supply a non-zero BytesN value
+            | ContractError::LeaseScopeMismatch        // re-lease against the same scope
+            | ContractError::LeaseExpired              // wait for the lease window to reopen
+            | ContractError::LeaseSignerMismatch       // sign with the lease holder's key
+            | ContractError::TimestampInFuture         // wait for the ledger to reach the supplied value
+            => true,
 
-            // Admin can supply a valid value / remove a signer or raise the
+            // Admin can supply a valid cap value, remove a signer, or raise the
             // cap, then retry.
             ContractError::InvalidMaxPauseSigners => true,
+
+            // Registering another pause signer is fixed by the admin raising
+            // the cap or removing a signer, then retrying.
             ContractError::MaxPauseSignersExceeded => true,
 
-            // Stale epoch proposals cannot be fixed by retry — re-propose in the
-            // current bucket.
+            // Stale epoch proposals cannot be fixed by retrying the same
+            // proposal — it must be re-proposed in the current bucket.
             ContractError::StaleAdminEpoch | ContractError::StaleSignerEpoch => false,
 
-            // Cross-contract caller mismatch is a security halt; do not retry.
+            // Cross-contract caller mismatch is a security halt; retrying the
+            // same call cannot succeed.
             ContractError::CrossContractCallerMismatch => false,
 
             // --- Bond (200-299): most errors are caller-fixable. ---
@@ -1413,16 +1423,15 @@ impl ErrorExt for ContractError {
             | ContractError::BondAlreadyExists
             | ContractError::UnauthorizedToken
             | ContractError::InvalidCurrency
-            | ContractError::InvalidStringifiedBytes    // resubmit with well-formed bytes
-            | ContractError::SnapshotGenerationMismatch // retry with correct generation
+            | ContractError::InvalidStringifiedBytes     // send well-formed hex/base64
+            | ContractError::SnapshotGenerationMismatch  // retry with the current generation
             | ContractError::DuplicateIdempotencyKey     // use a unique key
             | ContractError::BatchTooLarge         // reduce batch size
             | ContractError::EmptyBatch            // supply at least one item
-            | ContractError::SnapshotGenerationMismatch
-            | ContractError::CooldownRequestAlreadyPending
+            | ContractError::BytesTooLarge         // resubmit with shorter input
+            | ContractError::CooldownRequestAlreadyPending // wait for the existing request
             | ContractError::CooldownRequestNotFound
-            | ContractError::CooldownPeriodNotElapsed
-            | ContractError::InvalidStringifiedBytes
+            | ContractError::CooldownPeriodNotElapsed     // wait for the cooldown to elapse
             => true,
 
             // FATAL Bond: caller cannot directly fix any of these.
@@ -1490,9 +1499,11 @@ impl ErrorExt for ContractError {
             | ContractError::InvalidFlashLoanCallback
             | ContractError::FlashLoanRepaymentFailed => true,
 
-            // FATAL Treasury: protocol-level failures.
-            ContractError::InvalidFlashLoanCallback => false, // bad magic; same call will fail
-            ContractError::FlashLoanRepaymentFailed => false,  // bad repayment; same call will fail
+            // Flash-loan callback/repayment failures are protocol-level
+            // impossibilities for the same call; retrying cannot succeed.
+            ContractError::InvalidFlashLoanCallback => false, // bad magic value
+            ContractError::FlashLoanRepaymentFailed => false, // principal+fee mismatch
+
 
 
 
@@ -1582,7 +1593,7 @@ macro_rules! require_no_leading_zero_amount {
 macro_rules! require_positive_amount {
     ($env:expr, $amount:expr) => {
         if $amount <= 0 {
-            panic_with_error!($env, $crate::ContractError::AmountMustBePositive);
+            ::soroban_sdk::panic_with_error!($env, $crate::ContractError::AmountMustBePositive);
         }
     };
 }

@@ -112,7 +112,7 @@ pub fn validate_batch_bonds(e: &Env, params_list: &Vec<BatchBondParams>) {
 ///     BatchBondParams {
 ///         identity: addr1,
 ///         amount: 1000,
-///         duration: credence_math::Timestamp::SECONDS_PER_DAY,
+///         duration: credence_math::SECONDS_PER_DAY,
 ///         is_rolling: false,
 ///         notice_period_duration: 0,
 ///     },
@@ -160,7 +160,7 @@ pub fn create_batch_bonds(e: &Env, params_list: Vec<BatchBondParams>) -> BatchBo
             notice_period_duration: params.notice_period_duration,
         };
 
-        // Store the bond under the same per-identity key checked in step 2.
+        // Store the bond
         let bond_key = DataKey::Bond(params.identity.clone());
         e.storage().instance().set(&bond_key, &bond);
 
@@ -255,7 +255,7 @@ mod tests {
         params_list.push_back(BatchBondParams {
             identity: addr1,
             amount: 1000,
-            duration: credence_math::Timestamp::SECONDS_PER_DAY,
+            duration: credence_math::SECONDS_PER_DAY,
             is_rolling: false,
             notice_period_duration: 0,
         });
@@ -263,7 +263,7 @@ mod tests {
         params_list.push_back(BatchBondParams {
             identity: addr2,
             amount: 2000,
-            duration: credence_math::Timestamp::SECONDS_PER_DAY,
+            duration: credence_math::SECONDS_PER_DAY,
             is_rolling: false,
             notice_period_duration: 0,
         });

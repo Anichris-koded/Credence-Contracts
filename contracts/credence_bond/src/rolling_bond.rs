@@ -63,16 +63,20 @@ mod tests {
     use soroban_sdk::testutils::Address as _;
 
     fn bond(bond_start: u64, bond_duration: u64, withdrawal_requested_at: u64) -> IdentityBond {
+        // `IdentityBond` has no `Default` impl, so every field is listed
+        // explicitly. Only `bond_start`, `bond_duration` and
+        // `withdrawal_requested_at` are exercised by these tests; the rest
+        // are inert placeholders.
         IdentityBond {
-            identity: soroban_sdk::Address::generate(soroban_sdk::Env::default()),
+            identity: soroban_sdk::Address::generate(&soroban_sdk::Env::default()),
             bonded_amount: 0,
             bond_start,
             bond_duration,
             slashed_amount: 0,
             active: true,
-            is_rolling: true,
+            is_rolling: false,
             withdrawal_requested_at,
-            ..Default::default()
+            notice_period_duration: 0,
         }
     }
 
