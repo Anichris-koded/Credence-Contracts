@@ -1146,3 +1146,7 @@ mod test_require_matching_contract_id;
 
 #[cfg(test)]
 mod test_operator_epoch_guard;
+
+#[cfg(test)]
+mod test_boundary_recovery;
+
