@@ -93,6 +93,14 @@ pub mod test_invariants;
 /// Shared test setup utilities (mock token, bond registration).
 #[cfg(test)]
 pub mod test_helpers;
+
+/// Boundary and recovery coverage for idempotency replay guard (issue #1332).
+#[cfg(test)]
+mod test_idempotency_boundary;
+
+/// Recovery coverage for idempotency replay guard: duplicate handling, rollback, retention.
+#[cfg(test)]
+mod test_idempotency_recovery;
 #[cfg(test)]
 mod test_unauthorized_token;
 #[cfg(test)]
