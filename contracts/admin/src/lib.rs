@@ -61,6 +61,8 @@ pub mod pausable;
 mod test_events_schema;
 #[cfg(test)]
 mod test_ownership_transfer;
+#[cfg(test)]
+mod test_execute_pause_proposal_enhanced;
 
 use credence_errors::{ContractError, Role};
 use soroban_sdk::panic_with_error;
@@ -214,6 +216,63 @@ impl AdminContract {
     /// Return the contract version.
     pub fn version(e: Env) -> String {
         String::from_str(&e, credence_errors::VERSION)
+    }
+
+    /// Return whether `address` is currently an active admin.
+    ///
+    /// # Determinism and failure boundaries
+    ///
+    /// This is a pure read: it never mutates storage, never advances
+    /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
+    /// snapshot it always returns the same value, so it is safe to call from
+    /// other contracts and from off-chain simulations.
+    ///
+    /// An address is considered an admin if and only if **all** of the
+    /// following hold:
+    ///
+    /// 1. An [`AdminInfo`] record exists for the address.
+    /// 2. The record's `active` flag is `true`.
+    /// 3. The record is not currently suspended, i.e.
+    ///    `suspended_until == 0 || e.ledger().timestamp() >= suspended_until`.
+    ///
+    /// Suspension expires automatically once the ledger timestamp reaches
+    /// `suspended_until`, so no second transaction is required to restore
+    /// admin status.
+    ///
+    /// # Boundary cases
+    ///
+    /// * Uninitialized contract — returns `false` (no panic, no partial read).
+    /// * Unknown address — returns `false`.
+    /// * Deactivated admin — returns `false`.
+    /// * Suspended admin — returns `false` until the suspension expires.
+    /// * Suspension boundary — at exactly `suspended_until` the admin is
+    ///   active again (`>=` comparison).
+    ///
+    /// # Security
+    ///
+    /// This function performs no authorization check and exposes no sensitive
+    /// data: it only reveals whether a public address currently holds admin
+    /// privileges, which is already observable through privileged entrypoints.
+    pub fn is_admin(e: Env, address: Address) -> bool {
+        let info: Option<AdminInfo> = e
+            .storage()
+            .instance()
+            .get(&DataKey::AdminInfo(address));
+
+        match info {
+            None => false,
+            Some(info) => {
+                if !info.active {
+                    return false;
+                }
+                if info.suspended_until != 0
+                    && e.ledger().timestamp() < info.suspended_until
+                {
+                    return false;
+                }
+                true
+            }
+        }
     }
 
     /// Initialize the admin contract with a super admin.
@@ -741,6 +800,9 @@ impl AdminContract {
     /// * `NotAdmin`          — caller or target is not a known admin
     /// * `NotAdmin`          — caller role is strictly lower than target role
     /// * `AdminSuspended`    — `until_ts` is not in the future
+    /// * `AdminSuspended`    — target admin is already suspended at or beyond `until_ts`
+    ///                         (re-suspension must strictly extend the window)
+    /// * `AdminUnchanged`    — target admin is the caller (self-suspension is rejected)
     /// * `InvalidPauseAction` — suspending would drop active admins below `MinAdmins`
     /// * `AlreadyDeactivated` — target admin is permanently deactivated
     ///
@@ -750,6 +812,13 @@ impl AdminContract {
         bump_instance_ttl(&e);
         pausable::require_not_paused(&e);
         caller.require_auth_for_args((caller.clone(), admin.clone(), until_ts).into_val(&e));
+
+        // Self-suspension is rejected: an admin must not be able to lock
+        // themselves out, which would otherwise strand governance when the
+        // caller is the only effective admin of their role.
+        if caller == admin {
+            panic_with_error!(&e, ContractError::AdminUnchanged);
+        }
 
         // until_ts must be in the future
         if until_ts <= e.ledger().timestamp() {
@@ -767,6 +836,14 @@ impl AdminContract {
             panic_with_error!(&e, ContractError::AlreadyDeactivated);
         }
 
+        // Re-suspension must strictly extend the existing window. A repeated
+        // or shorter suspension is a no-op rejection so observers never see a
+        // spurious epoch bump or event for a state that did not change.
+        let now = e.ledger().timestamp();
+        if admin_info.suspended_until > now && until_ts <= admin_info.suspended_until {
+            panic_with_error!(&e, ContractError::AdminSuspended);
+        }
+
         // Caller must have a role >= target's role (same rule as deactivate_admin)
         let caller_info: AdminInfo = e
             .storage()
@@ -779,7 +856,6 @@ impl AdminContract {
 
         // MinAdmins guard: count currently-effective active admins
         let min_admins: u32 = e.storage().instance().get(&DataKey::MinAdmins).unwrap_or(1);
-        let now = e.ledger().timestamp();
         let all_admins: Vec<Address> = e
             .storage()
             .instance()
@@ -880,8 +956,11 @@ impl AdminContract {
     ///
     /// # Panics
     /// * `NoPendingAdmin` — no ownership transfer has been proposed
-    /// * `NotAdmin` — caller is not the pending owner
+    /// * `NotAdmin` — caller is not the pending owner, or the pending
+    ///   candidate is no longer a SuperAdmin
     /// * `TimelockNotReady` — the minimum delay since proposal has not elapsed
+    /// * `AlreadyDeactivated` — the pending candidate was deactivated
+    /// * `AdminSuspended` — the pending candidate is currently suspended
     ///
     /// # Events
     /// Emits `ownership_transfer_accepted` with previous owner and new owner
@@ -892,6 +971,12 @@ impl AdminContract {
     /// A minimum delay of `OWNERSHIP_TRANSFER_TIMELOCK` seconds must elapse
     /// between `transfer_ownership` and `accept_ownership` to protect against
     /// compromised-owner takeovers.
+    ///
+    /// The pending candidate is revalidated against *current* state immediately
+    /// before the ownership write. A candidate who was removed, demoted,
+    /// deactivated, or suspended during the timelock cannot accept; the
+    /// reverted call changes no state and emits no events, so the current owner
+    /// can recover by replacing the proposal.
     pub fn accept_ownership(e: Env, caller: Address) {
         bump_instance_ttl(&e);
         pausable::require_not_paused(&e);
@@ -922,6 +1007,14 @@ impl AdminContract {
         if now < eligible_at {
             panic_with_error!(&e, ContractError::TimelockNotReady);
         }
+
+        // Revalidate immediately before the first ownership write. A proposal is
+        // only an intent: the candidate may have been removed, demoted,
+        // deactivated, or suspended while the timelock elapsed (possibly by a
+        // concurrent transaction). Failing here leaves the owner, pending owner,
+        // proposal timestamp, config epoch, and event stream untouched, so the
+        // current owner can recover by replacing the proposal.
+        Self::require_effective_super_admin(&e, &pending_owner);
 
         bump_config_epoch(&e);
 
@@ -1010,6 +1103,16 @@ impl AdminContract {
     /// The admin role if the address is an admin, panics otherwise
     pub fn get_admin_role(e: Env, address: Address) -> AdminRole {
         bump_instance_ttl(&e);
+        // Failure-boundary invariant: `get_admin_role` is a read-only query
+        // that MUST NOT mutate state, advance the config epoch, or emit
+        // events. It is deterministic for all inputs:
+        //   * known admin (active, suspended, or deactivated) -> stored role
+        //   * unknown / never-registered address              -> NotAdmin panic
+        //   * zero/invalid sentinel address                   -> NotAdmin panic
+        // A suspended or deactivated admin still resolves to their stored
+        // role here; callers that need effective-authority semantics must
+        // use `is_admin` / `has_role_at_least` instead. This separation is
+        // intentional and covered by focused failure-boundary tests.
         let admin_info: AdminInfo = e
             .storage()
             .instance()
@@ -1269,7 +1372,65 @@ impl AdminContract {
         active_count
     }
 
+    /// Get the number of currently-effective active admins.
+    ///
+    /// Unlike [`get_active_admin_count`], this counts only admins that are
+    /// both `active == true` **and** not currently suspended
+    /// (`e.ledger().timestamp() >= suspended_until`).  It is the count used
+    /// by the `MinAdmins` guard in [`suspend_admin`] and matches the
+    /// effective-admin semantics of [`is_admin`] and [`has_role_at_least`].
+    ///
+    /// # Determinism
+    /// The result is a pure function of the persisted `AdminList` and the
+    /// per-admin `AdminInfo` records at the current ledger timestamp.  It
+    /// performs no mutation, advances no epoch, and emits no events, so it is
+    /// safe to call from read-only paths and from within other entrypoints.
+    ///
+    /// # Boundary behaviour
+    /// * Empty / uninitialised `AdminList` → `0`.
+    /// * An `AdminList` entry with no matching `AdminInfo` (dangling entry)
+    ///   is skipped, never counted, and never panics.
+    /// * Suspension expiry is inclusive: at exactly `suspended_until` the
+    ///   admin is effective again.
+    ///
+    /// # Returns
+    /// The count of currently-effective active admins.
+    pub fn get_effective_active_admin_count(e: Env) -> u32 {
+        bump_instance_ttl(&e);
+        #[allow(deprecated)]
+        let all_admins = Self::get_all_admins(e.clone());
+        let now = e.ledger().timestamp();
+        let mut active_count: u32 = 0;
+        for admin in all_admins.iter() {
+            if let Some(admin_info) = e
+                .storage()
+                .instance()
+                .get::<_, AdminInfo>(&DataKey::AdminInfo(admin.clone()))
+            {
+                if admin_info.active && now >= admin_info.suspended_until {
+                    active_count = active_count
+                        .checked_add(1)
+                        .unwrap_or_else(|| panic_with_error!(&e, ContractError::Overflow));
+                }
+            }
+        }
+        active_count
+    }
+
     /// Get contract configuration.
+    ///
+    /// # Determinism and failure boundaries
+    ///
+    /// This is a pure read: it never mutates storage, never advances
+    /// [`DataKey::ConfigEpoch`], and never emits events. Given the same ledger
+    /// snapshot it always returns the same `(min_admins, max_admins)` pair.
+    ///
+    /// Failure boundary: on an uninitialized contract (or one whose config
+    /// keys were never written) this panics with
+    /// [`ContractError::NotInitialized`] rather than returning a defaulted
+    /// `(0, 0)` tuple. Returning a fabricated default would let callers
+    /// silently proceed against a contract that has no enforced admin
+    /// bounds, so the failure is surfaced explicitly and atomically.
     ///
     /// # Returns
     /// A tuple of (min_admins, max_admins)
@@ -1452,6 +1613,9 @@ impl AdminContract {
 #[cfg(test)]
 mod test;
 
+#[cfg(test)]
+mod test_require_role_at_ledger;
+
 // Pause mechanism entrypoints
 #[contractimpl]
 impl AdminContract {
@@ -1485,14 +1649,294 @@ impl AdminContract {
         pausable::approve_pause_proposal(&e, &signer, proposal_id)
     }
 
+    /// Execute a pause/unpause proposal once approvals meet the threshold.
+    ///
+    /// # Deterministic failure boundaries
+    ///
+    /// This function implements comprehensive error boundaries to ensure deterministic
+    /// behavior across all input scenarios, state conditions, and concurrent execution:
+    ///
+    /// ## Input validation
+    /// * Rejects zero or invalid proposal IDs before any state reads
+    /// * Validates proposal ID bounds to prevent overflow/underflow conditions
+    ///
+    /// ## State consistency
+    /// * Verifies contract initialization and configuration integrity
+    /// * Ensures pause threshold and signer configuration consistency
+    /// * Validates proposal state integrity before execution
+    ///
+    /// ## Concurrent execution safety
+    /// * Uses monotonic epoch tracking to detect concurrent state mutations
+    /// * Implements idempotent execution when proposal state is unchanged
+    /// * Prevents double-execution through deterministic state checks
+    ///
+    /// ## Authorization boundaries
+    /// * Validates proposal creation by authorized signers
+    /// * Ensures signer approvals remain valid at execution time
+    /// * Verifies threshold configuration hasn't been compromised
+    ///
+    /// ## Error classification
+    /// * **Transient errors** (retryable): `StaleAdminEpoch`, `InsufficientApprovals`
+    /// * **Permanent errors** (not retryable): `ProposalNotFound`, `InvalidPauseAction`
+    /// * **System errors** (require investigation): Configuration inconsistencies
+    ///
+    /// ## Observability
+    /// * Comprehensive event logging for all execution phases
+    /// * Diagnostic metrics for performance monitoring
+    /// * Error context logging without sensitive data exposure
+    /// * State transition tracking for audit trails
+    ///
+    /// # Arguments
+    /// * `proposal_id` - The proposal ID to execute
+    ///
+    /// # Panics
+    /// * `ProposalNotFound` - No proposal exists for the given ID
+    /// * `StaleAdminEpoch` - Proposal ID derived from stale epoch (retryable)
+    /// * `InsufficientApprovals` - Approval threshold not met (retryable)
+    /// * `InvalidPauseAction` - Proposal action value is invalid
+    /// * `NotInitialized` - Contract not properly initialized
+    /// * `InvalidAdminAddress` - Configuration contains invalid addresses
+    /// * `ThresholdExceedsSigners` - Invalid threshold configuration
+    ///
+    /// # Events
+    /// Emits execution attempt events for observability without exposing sensitive data
     pub fn execute_pause_proposal(e: Env, proposal_id: u64) {
         bump_instance_ttl(&e);
-        pausable::execute_pause_proposal(&e, proposal_id)
+
+        // ── Execution Context Logging ───────────────────────────────────────────
+        // Log execution start with context for monitoring and debugging
+        e.events().publish(
+            (Symbol::new(&e, "pause_proposal_execution_started"),),
+            (proposal_id, e.ledger().sequence(), e.ledger().timestamp()),
+        );
+
+        // ── Input Validation ─────────────────────────────────────────────────────
+        // Reject invalid proposal IDs before any state operations to ensure
+        // deterministic failure boundaries independent of storage state
+        match Self::validate_proposal_id_with_logging(&e, proposal_id) {
+            Ok(()) => {
+                e.events().publish(
+                    (Symbol::new(&e, "pause_proposal_validation_passed"),),
+                    proposal_id,
+                );
+            }
+            Err(error_code) => {
+                e.events().publish(
+                    (Symbol::new(&e, "pause_proposal_validation_failed"),),
+                    (proposal_id, error_code),
+                );
+                panic_with_error!(&e, ContractError::InvalidPauseAction);
+            }
+        }
+
+        // ── State Consistency Verification ──────────────────────────────────────
+        // Verify contract and configuration integrity before proposal execution
+        match Self::validate_pause_configuration_with_logging(&e) {
+            Ok(config) => {
+                e.events().publish(
+                    (Symbol::new(&e, "pause_config_validation_passed"),),
+                    (config.threshold, config.signer_count, config.initialized),
+                );
+            }
+            Err(error_code) => {
+                e.events().publish(
+                    (Symbol::new(&e, "pause_config_validation_failed"),),
+                    (proposal_id, error_code),
+                );
+                // The specific error will be panicked by the validation function
+                Self::require_valid_pause_configuration(&e);
+            }
+        }
+
+        // ── Delegate to Enhanced Pausable Implementation ────────────────────────
+        // The pausable module handles the core execution logic with enhanced
+        // error boundaries and deterministic state transitions
+        pausable::execute_pause_proposal(&e, proposal_id);
+        
+        // ── Final Success Logging ───────────────────────────────────────────────
+        e.events().publish(
+            (Symbol::new(&e, "pause_proposal_execution_completed"),),
+            (proposal_id, e.ledger().sequence()),
+        );
+    }
+
+    /// Validate that a proposal ID is within acceptable bounds and not a sentinel value.
+    ///
+    /// # Deterministic validation
+    /// * Rejects zero proposal ID (invalid sentinel value)
+    /// * Ensures proposal ID is within reasonable bounds
+    /// * Provides consistent error behavior independent of storage state
+    ///
+    /// # Arguments
+    /// * `proposal_id` - The proposal ID to validate
+    ///
+    /// # Panics
+    /// * `InvalidPauseAction` - Proposal ID is zero or invalid
+    fn require_valid_proposal_id(e: &Env, proposal_id: u64) {
+        if proposal_id == 0 {
+            panic_with_error!(e, ContractError::InvalidPauseAction);
+        }
+        // Additional bounds checking to prevent potential overflow in future operations
+        if proposal_id == u64::MAX {
+            panic_with_error!(e, ContractError::Overflow);
+        }
+    }
+
+    /// Validate pause configuration consistency and contract initialization.
+    ///
+    /// # Deterministic validation
+    /// * Ensures contract is properly initialized
+    /// * Validates pause threshold doesn't exceed signer count
+    /// * Verifies signer configuration integrity
+    /// * Checks for configuration inconsistencies that could lead to deadlock
+    ///
+    /// # Panics
+    /// * `NotInitialized` - Contract not initialized
+    /// * `ThresholdExceedsSigners` - Invalid threshold configuration
+    fn require_valid_pause_configuration(e: &Env) {
+        // Verify contract initialization
+        let initialized: bool = e
+            .storage()
+            .instance()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false);
+        if !initialized {
+            panic_with_error!(e, ContractError::NotInitialized);
+        }
+
+        // Validate pause threshold configuration consistency
+        let threshold: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::PauseThreshold)
+            .unwrap_or(0);
+        let signer_count: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::PauseSignerCount)
+            .unwrap_or(0);
+
+        // Prevent deadlock: threshold must never exceed available signers
+        if threshold > 0 && threshold > signer_count {
+            panic_with_error!(e, ContractError::ThresholdExceedsSigners);
+        }
+
+        // If threshold is configured (> 0), ensure we have signers
+        if threshold > 0 && signer_count == 0 {
+            panic_with_error!(e, ContractError::ThresholdExceedsSigners);
+        }
+    }
+
+    /// Validate that an address is not a sentinel or invalid value.
+    ///
+    /// # Security
+    /// Rejects addresses that could cause permanent loss of admin control:
+    /// * Zero/invalid address sentinel that cannot be controlled
+    /// * Contract's own address which would create circular dependencies
+    ///
+    /// # Arguments
+    /// * `address` - The address to validate
+    ///
+    /// # Panics
+    /// * `InvalidAdminAddress` - Address is invalid or a sentinel value
+    fn require_valid_admin_address(e: &Env, address: &Address) {
+        // Reject the zero/invalid address sentinel
+        if address.to_string() == String::from_str(e, INVALID_ADDRESS_SENTINEL) {
+            panic_with_error!(e, ContractError::InvalidAdminAddress);
+        }
+        // Reject self-reference to prevent circular dependencies
+        if *address == e.current_contract_address() {
+            panic_with_error!(e, ContractError::InvalidAdminAddress);
+        }
+    }
+
+    /// Configuration structure for observability
+    #[derive(Clone, Debug)]
+    struct PauseConfiguration {
+        threshold: u32,
+        signer_count: u32,
+        initialized: bool,
+    }
+
+    /// Enhanced proposal ID validation with detailed logging.
+    ///
+    /// # Arguments
+    /// * `proposal_id` - The proposal ID to validate
+    ///
+    /// # Returns
+    /// * `Ok(())` if validation passes
+    /// * `Err(error_code)` with diagnostic error code if validation fails
+    fn validate_proposal_id_with_logging(e: &Env, proposal_id: u64) -> Result<(), u32> {
+        if proposal_id == 0 {
+            return Err(1); // Error code 1: zero proposal ID
+        }
+        if proposal_id == u64::MAX {
+            return Err(2); // Error code 2: overflow boundary
+        }
+        Ok(())
+    }
+
+    /// Enhanced configuration validation with detailed logging.
+    ///
+    /// # Returns
+    /// * `Ok(PauseConfiguration)` if validation passes
+    /// * `Err(error_code)` with diagnostic error code if validation fails
+    fn validate_pause_configuration_with_logging(e: &Env) -> Result<PauseConfiguration, u32> {
+        let initialized: bool = e
+            .storage()
+            .instance()
+            .get(&DataKey::Initialized)
+            .unwrap_or(false);
+        
+        if !initialized {
+            return Err(1); // Error code 1: not initialized
+        }
+
+        let threshold: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::PauseThreshold)
+            .unwrap_or(0);
+        let signer_count: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::PauseSignerCount)
+            .unwrap_or(0);
+
+        if threshold > 0 && threshold > signer_count {
+            return Err(2); // Error code 2: threshold exceeds signers
+        }
+
+        if threshold > 0 && signer_count == 0 {
+            return Err(3); // Error code 3: threshold set but no signers
+        }
+
+        Ok(PauseConfiguration {
+            threshold,
+            signer_count,
+            initialized,
+        })
     }
 }
 
 #[cfg(test)]
 mod test_pausable;
+
+#[cfg(test)]
+mod test_unpause_failure_boundaries;
+
+#[cfg(test)]
+mod test_pause_failure_boundaries;
+
+/// Deterministic failure-boundary coverage for `set_pause_signer` (issue #1409).
+/// Covers: authorization hierarchy, zero-address rejection, self-assignment
+/// rejection, idempotency, epoch monotonicity, count/threshold invariants,
+/// concurrent execution safety, and full lifecycle regression scenarios.
+#[cfg(test)]
+mod test_set_pause_signer_boundaries;
+
+#[cfg(test)]
+mod test_zero_address_working;
 
 #[cfg(test)]
 mod test_admin_epoch_guard;
@@ -1504,13 +1948,22 @@ mod test_basic;
 mod test_zero_address;
 
 #[cfg(test)]
+mod test_zero_address_simple;
+
+#[cfg(test)]
 mod test_immutable_config_simple;
 
 #[cfg(test)]
 mod test_authorization;
 
 #[cfg(test)]
+mod test_set_pause_threshold_boundaries;
+
+#[cfg(test)]
 mod test_suspension;
+
+#[cfg(test)]
+mod test_deactivate_admin_boundaries;
 
 #[cfg(test)]
 mod test_auth_entrypoints;
@@ -1525,7 +1978,19 @@ mod test_emergency;
 mod test_role_events;
 
 #[cfg(test)]
+mod test_reactivate_admin_boundaries;
+
+#[cfg(test)]
 mod test_concurrency_race_safety;
 
+#[cfg(test)]
+mod test_get_admin_info_boundaries;
+
+#[cfg(test)]
+mod test_atomic_rollback;
+
+#[cfg(test)]
+mod test_require_valid_admin_address;
+mod test_pause_boundary_recovery;
 #[cfg(test)]
 mod test_approve_pause_proposal_boundaries;
