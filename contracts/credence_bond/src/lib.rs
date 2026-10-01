@@ -2,6 +2,11 @@
 #![deny(clippy::float_arithmetic)]
 #![cfg_attr(not(test), deny(clippy::disallowed_macros))]
 
+// `access_control` was not in the module tree on `main`, so none of it was
+// compiled or reachable. Made `pub` rather than private so the integration test
+// target in `tests/access_control_boundaries.rs` can exercise the guards against
+// the production build.
+pub mod access_control;
 #[cfg(test)]
 mod batch;
 mod claims;
@@ -1724,8 +1729,6 @@ impl CredenceBond {
             Self::release_lock(&e);
             panic_with_error!(&e, ContractError::EarlyExitConfigNotSet)
         });
-        let cfg = early_exit_penalty::get_config(&e)
-            .unwrap_or_else(|_| panic_with_error!(&e, ContractError::EarlyExitConfigNotSet));
         let penalty_bps = cfg.penalty_bps;
 
         let remaining = end.saturating_sub(now);
@@ -3412,6 +3415,11 @@ mod test_bps_denominator;
 
 /// Access-control test helpers used by integration test modules.
 /// Excluded from release WASM.
+// The in-crate `test_access_control` module is still disabled: it is part of
+// the 266-error `--lib` test target left broken on `main`, so it cannot be
+// compiled or run even with its two stale call sites fixed here. Its coverage
+// now lives in `tests/access_control_boundaries.rs` (issue #1316), which links
+// the production build and therefore actually executes.
 // [pre-broken on main] #[cfg(test)]
 // [pre-broken on main] pub mod test_access_control;
 /// Regression guard: canonical lifecycle scenarios with pinned expected states,
