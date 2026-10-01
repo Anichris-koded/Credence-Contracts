@@ -1657,6 +1657,9 @@ impl AdminContract {
 mod test_pausable;
 
 #[cfg(test)]
+mod test_unpause_failure_boundaries;
+
+#[cfg(test)]
 mod test_pause_failure_boundaries;
 
 /// Deterministic failure-boundary coverage for `set_pause_signer` (issue #1409).
