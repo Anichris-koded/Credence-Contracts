@@ -2082,6 +2082,9 @@ mod test_get_admin_info_boundaries;
 mod test_atomic_rollback;
 
 #[cfg(test)]
+mod test_bump_instance_ttl_boundaries;
+
+#[cfg(test)]
 mod test_required_role_to_assign;
 
 #[cfg(test)]
@@ -2089,6 +2092,3 @@ mod test_require_valid_admin_address;
 
 #[cfg(test)]
 mod test_pause_boundary_recovery;
-
-#[cfg(test)]
-mod test_approve_pause_proposal_boundaries;
