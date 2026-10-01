@@ -134,6 +134,27 @@ fn test_create_dispute_rejects_when_creator_has_ongoing_dispute() {
 }
 
 #[test]
+fn test_create_dispute_recovers_from_stale_active_dispute_marker() {
+    let s = setup();
+    s.env
+        .storage()
+        .instance()
+        .set(&DataKey::ActiveDispute(s.creator.clone()), &999u64);
+
+    let description = String::from_str(&s.env, "recovery dispute");
+    let dispute_id = s.client.create_dispute(&s.creator, &description, &3600);
+
+    let dispute = s.client.get_dispute(&dispute_id);
+    assert_eq!(dispute.creator, s.creator);
+    assert_eq!(dispute.status, DisputeStatus::Voting);
+    assert!(!s
+        .env
+        .storage()
+        .instance()
+        .has(&DataKey::ActiveDispute(s.creator.clone())));
+}
+
+#[test]
 fn test_invalid_resolve_already_resolved() {
     let s = setup();
     let id = open_dispute(&s);

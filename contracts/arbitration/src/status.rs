@@ -64,6 +64,9 @@ pub enum ArbitrationError {
     /// Dispute is still active (Open, Voting, or Resolving).
     /// Used to block operations that require the dispute to be inactive or resolved.
     DisputeActive = 17,
+    /// A creator already has an unresolved dispute tracked as active.
+    /// This is raised when stale/duplicate active markers are still present.
+    OngoingDispute = 18,
 }
 
 /// Assert a status transition is valid, returning ArbitrationError::InvalidTransition otherwise.
