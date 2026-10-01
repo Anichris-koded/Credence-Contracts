@@ -140,6 +140,11 @@ pub fn require_dispute_resolved(status: &DisputeStatus) -> Result<(), Arbitratio
         DisputeStatus::Open | DisputeStatus::Voting | DisputeStatus::Resolving => {
             Err(ArbitrationError::DisputeActive)
         }
+        // `Archived` is not a ruling: the dispute was filed away by an admin and
+        // can be reopened, so consumers must not read it as resolved. This is
+        // deliberately stricter than `require_dispute_inactive`, which lets
+        // archived disputes through for lease work.
+        DisputeStatus::Archived => Err(ArbitrationError::DisputeActive),
     }
 }
 
